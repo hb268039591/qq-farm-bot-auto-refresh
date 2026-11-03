@@ -47,6 +47,7 @@ const DEFAULT_LOGIN_SETTINGS: LoginSettings = {
 };
 
 const DEFAULT_ACCOUNT_CONFIG: AccountConfig = {
+    autoCodeRefresh: { enabled: true, intervalMinutes: 60 },
     automation: {
         farm: true,
         farm_harvest_tiangong: true,
@@ -273,6 +274,15 @@ function normalizeIntervals(intervals: Partial<IntervalConfig> | undefined): Int
     } as IntervalConfig;
 }
 
+function normalizeAutoCodeRefresh(input: any, fallback = { enabled: true, intervalMinutes: 60 }) {
+    const raw = input && typeof input === 'object' ? input : fallback;
+    const minutes = Number(raw.intervalMinutes);
+    return {
+        enabled: raw.enabled !== undefined ? raw.enabled === true : fallback.enabled,
+        intervalMinutes: Number.isFinite(minutes) && minutes > 0 ? Math.max(1, Math.min(1440, Math.floor(minutes))) : fallback.intervalMinutes,
+    };
+}
+
 function cloneAccountConfig(base: Partial<AccountConfig> = DEFAULT_ACCOUNT_CONFIG): AccountConfig {
     const srcAutomation = (base && base.automation && typeof base.automation === 'object')
         ? base.automation
@@ -298,6 +308,7 @@ function cloneAccountConfig(base: Partial<AccountConfig> = DEFAULT_ACCOUNT_CONFI
         ...DEFAULT_ACCOUNT_CONFIG,
         ...base,
         automation,
+        autoCodeRefresh: normalizeAutoCodeRefresh(base.autoCodeRefresh),
         intervals: { ...(base.intervals || DEFAULT_ACCOUNT_CONFIG.intervals) },
         friendQuietHours: { ...DEFAULT_ACCOUNT_CONFIG.friendQuietHours, ...(base.friendQuietHours || {}) },
         knownFriendGids,
@@ -336,6 +347,7 @@ function cloneAccountConfig(base: Partial<AccountConfig> = DEFAULT_ACCOUNT_CONFI
 function normalizeAccountConfig(input: unknown, fallback: AccountConfig = accountFallbackConfig): AccountConfig {
     const src: Record<string, any> = (input && typeof input === 'object') ? input as Record<string, any> : {};
     const cfg = cloneAccountConfig(fallback || DEFAULT_ACCOUNT_CONFIG);
+    cfg.autoCodeRefresh = normalizeAutoCodeRefresh(src.autoCodeRefresh, cfg.autoCodeRefresh);
 
     if (src.automation && typeof src.automation === 'object') {
         for (const [k, v] of Object.entries(src.automation)) {
@@ -639,6 +651,7 @@ module.exports = {
     normalizeAutoAcceptHarvestStealHarvest,
     normalizeAutoAcceptHarvestStealSteal,
     normalizeAccountConfig,
+    normalizeAutoCodeRefresh,
     cloneAccountConfig,
     resolveAccountId,
     loadGlobalConfig,

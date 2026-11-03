@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/icon.svg?v=farmhouse-1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <title>QQ农场智能助手</title>
+    <script>
+      // 首屏前应用主题，避免先白后黑的闪烁；与 stores/app.ts 使用同一个 theme_mode。
+      (function () {
+        try {
+          var raw = localStorage.getItem('theme_mode') || 'system'
+          var mode = raw.replace(/"/g, '')
+          var dark = mode === 'dark' || (mode === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)
+          if (dark) document.documentElement.classList.add('dark')
+          document.documentElement.style.colorScheme = dark ? 'dark' : 'light'
+        } catch (e) {}
+      })()
+    </script>
+  <script type="module" crossorigin src="/assets/index-DTDh-Cmv.js"></script>
+  <link rel="modulepreload" crossorigin href="/assets/vendor-BeAZ7MED.js">
+  <link rel="modulepreload" crossorigin href="/assets/vendor-vue-BNzEWtvB.js">
+  <link rel="modulepreload" crossorigin href="/assets/vendor-axios-C0Zqfgkc.js">
+  <link rel="modulepreload" crossorigin href="/assets/vendor-ui-CgcfbuXb.js">
+  <link rel="stylesheet" crossorigin href="/assets/vendor-Dq8racbg.css">
+  <link rel="stylesheet" crossorigin href="/assets/index-CDAKjMfr.css">
+</head>
+<body>
+<div id="app"></div>
+</body>
+</html>

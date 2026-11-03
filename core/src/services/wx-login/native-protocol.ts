@@ -47,7 +47,49 @@ function pskClientHello(ticket: Buffer, timestamp: number) {
     ]);
     return hs(0x01, body);
 }
-async function socket(host: string, port: number, timeout = 30000) { const s = net.createConnection({ host, port }); const chunks: Buffer[] = []; let ended = false; s.on('data', x => chunks.push(Buffer.from(x))); s.on('end', () => { ended = true; }); await new Promise<void>((ok, no) => { s.once('connect', ok); s.once('error', no); setTimeout(() => no(new Error('connection timeout')), timeout); }); let offset = 0; async function take() { const until = Date.now() + timeout; for (;;) { const all = Buffer.concat(chunks); if (all.length - offset >= 5) { const n = all.readUInt16BE(offset + 3); if (all.length - offset >= n + 5) { const out = { type: all[offset], body: all.subarray(offset + 5, offset + 5 + n) }; offset += 5 + n; return out; } } if (ended || Date.now() > until) throw new Error('socket read timeout'); await new Promise(r => setTimeout(r, 10)); } } return { s, take, send: (b: Buffer) => new Promise<void>((ok, no) => s.write(b, e => e ? no(e) : ok())), close: () => s.destroy() }; }
+async function socket(host: string, port: number, timeout = 5000) {
+    const s = net.createConnection({ host, port });
+    const chunks: Buffer[] = [];
+    let ended = false;
+    let failure: Error | undefined;
+    s.on('data', chunk => chunks.push(Buffer.from(chunk)));
+    s.on('end', () => { ended = true; });
+    s.on('close', () => { ended = true; });
+    s.on('error', error => { failure = error; ended = true; });
+    try {
+        await new Promise<void>((resolve, reject) => {
+            const onConnect = () => { cleanup(); resolve(); };
+            const onError = (error: Error) => { cleanup(); reject(error); };
+            const cleanup = () => {
+                clearTimeout(timer);
+                s.off('connect', onConnect);
+                s.off('error', onError);
+            };
+            const timer = setTimeout(() => { cleanup(); s.destroy(); reject(new Error('connection timeout')); }, timeout);
+            s.once('connect', onConnect);
+            s.once('error', onError);
+        });
+    } catch (error) { s.destroy(); throw error; }
+    let offset = 0;
+    async function take() {
+        const until = Date.now() + timeout;
+        for (;;) {
+            const all = Buffer.concat(chunks);
+            if (all.length - offset >= 5) {
+                const n = all.readUInt16BE(offset + 3);
+                if (all.length - offset >= n + 5) {
+                    const out = { type: all[offset], body: all.subarray(offset + 5, offset + 5 + n) };
+                    offset += 5 + n;
+                    return out;
+                }
+            }
+            if (ended || Date.now() > until) throw failure || new Error('socket read timeout');
+            await new Promise(resolve => setTimeout(resolve, 10));
+        }
+    }
+    return { s, take, send: (data: Buffer) => new Promise<void>((resolve, reject) => s.write(data, error => error ? reject(error) : resolve())), close: () => s.destroy() };
+}
+
 function keys(secret: Buffer, label: string, hash: Buffer, size = 56) { const z = expand(secret, label, hash, size); return { ck: z.subarray(0, 16), sk: z.subarray(16, 32), ci: z.subarray(32, 44), si: z.subarray(44, 56) }; }
 function oneWayKeys(secret: Buffer, label: string, hash: Buffer) { const z = expand(secret, label, hash, 28); return { key: z.subarray(0, 16), iv: z.subarray(16, 28) }; }
 function manualRequest(buffer: string, app: Buffer) { const raw = Buffer.from(buffer, 'base64'); const f = pbf(raw); const ticket = f.get(1); const device = f.get(2); const host = f.get(3); if (!Buffer.isBuffer(ticket) || !ticket.length || !Buffer.isBuffer(device) || !device.length) throw new Error('invalid login buffer'); const base = Buffer.concat([pbl(1, app), pbv(2, 1901)]); const req = Buffer.concat([pbl(1, base), pbl(3, pbl(1, ticket)), pbv(4, 4), pbl(6, Buffer.alloc(0)), pbv(7, 0), pbv(8, 6)]); return { req, device, host: Buffer.isBuffer(host) && host.length ? host : HOST_APP }; }
@@ -96,15 +138,33 @@ function parseManual(body: Buffer, temp: any) {
 }
 function jsPlain(uin: bigint, appId: string, host: Buffer) { const mac = crypto.randomBytes(6); mac[0] = (mac[0] | 0x02) & 0xFE; const dev = U8(mac.toString('hex').match(/../g)!.join('-').toUpperCase()); const uin32 = BigInt.asUintN(32, uin); const info = (name: string) => Buffer.concat([pbl(1, U8('sessionkey')), pbv(2, uin32), pbl(3, dev), pbv(4, 1661404927), pbl(5, U8(name)), pbv(6, 0)]); const req = Buffer.concat([pbl(1, info('UnifiedPCWindows')), pbl(2, U8(appId)), pbv(4, 1), pbl(5, Buffer.alloc(0)), pbl(6, Buffer.alloc(0)), pbv(7, 1)]); return Buffer.concat([pbl(1, info('Windows')), pbl(2, U8('/cgi-bin/mmbiz-bin/js-login')), pbl(3, host), pbv(4, 5), pbl(5, req), pbl(6, U8(appId)), pbv(7, 1029), pbv(8, 1610627409), pbl(9, U8('WindowsxWebPlugin')), pbv(10, 573651281)]); }
 function envelope(s: Session, plain: Buffer) { const enc = layout(s.sendKey, lz4Literal(plain)); const head = wpkg({ 1: 1, 2: s.uin, 3: 0, 4: 0, 5: 524545, 6: 11, 7: 0, 8: 0, 9: 0, 10: 1, 11: 0, 12: 0, 13: 0, 17: 0, 18: 1, 20: 1504, 21: 0, 22: s.uin, 23: 0, 25: 16, 26: 4, 28: 1, 29: 1, 30: 0 }, { 14: Buffer.alloc(0), 24: s.deviceId, 27: s.f9 }); const inner = short(0x0B41, 0, Buffer.concat([head, enc])); const b = Buffer.concat([Buffer.alloc(2), TRANSFER_PATH, Buffer.alloc(2), TRANSFER_HOST, Buffer.alloc(4), inner]); b.writeUInt16BE(TRANSFER_PATH.length); b.writeUInt16BE(TRANSFER_HOST.length, 2 + TRANSFER_PATH.length); b.writeUInt32BE(inner.length, 4 + TRANSFER_PATH.length + TRANSFER_HOST.length); const n = Buffer.alloc(4); n.writeUInt32BE(b.length); return Buffer.concat([n, b]); }
-async function targets(kind: 'long' | 'short') { const r = await fetch('http://aedns.weixin.qq.com/cgi-bin/default/getdns?clientversion=0&devicetype=Windows&uin=0&format=json', { headers: { 'User-Agent': 'MicroMessenger Client' } }); const d: any = await r.json(); const item = d?.dns?.domainlist?.find((x: any) => x.name === (kind === 'long' ? 'longcloud.weixin.com' : 'shortcloud.weixin.com')); const proto = kind === 'long' ? 'mmtlsovertcp' : 'http'; const ports = item?.protocollist?.find((x: any) => x.name === proto)?.portlist || []; const ips = (item?.iplist || []).map((x: any) => x.ip); const out = ips.flatMap((ip: string) => ports.map((port: number) => ({ ip, port }))); return out.length ? out : [{ ip: kind === 'long' ? '180.153.202.85' : '120.241.131.173', port: kind === 'long' ? 8080 : 80 }]; }
+async function targets(kind: 'long' | 'short'): Promise<Target[]> {
+    const fallback = [{ ip: kind === 'long' ? '180.153.202.85' : '120.241.131.173', port: kind === 'long' ? 8080 : 80 }];
+    try {
+        const response = await fetch('http://aedns.weixin.qq.com/cgi-bin/default/getdns?clientversion=0&devicetype=Windows&uin=0&format=json', {
+            headers: { 'User-Agent': 'MicroMessenger Client' }, signal: AbortSignal.timeout(8000),
+        });
+        const data: any = await response.json();
+        const item = data?.dns?.domainlist?.find((entry: any) => entry.name === (kind === 'long' ? 'longcloud.weixin.com' : 'shortcloud.weixin.com'));
+        const rawPorts = item?.protocollist?.find((entry: any) => entry.name === (kind === 'long' ? 'mmtlsovertcp' : 'http'))?.portlist || [];
+        const ports = Array.isArray(rawPorts) ? rawPorts.filter((p: any) => Number.isInteger(p) && p > 0 && p <= 65535) : [];
+        // Retain the old automatic-refresh build's fast-port preference. Keep
+        // newly advertised ports as fallbacks instead of silently dropping them.
+        const ordered = [...new Set([...([8080, 443, 5000].filter(p => ports.includes(p))), ...ports.filter((p: number) => p !== 80), ...(ports.includes(80) ? [80] : [])])];
+        const ips = (item?.iplist || []).map((entry: any) => entry.ip).filter((ip: any) => typeof ip === 'string' && ip);
+        const out = ips.flatMap((ip: string) => ordered.map(port => ({ ip, port })));
+        return out.length ? out : fallback;
+    } catch { return fallback; }
+}
 
 export async function getNativeWxLoginCode(loginBuffer: string, appId: string): Promise<string> {
     const { req, device, host } = manualRequest(loginBuffer, crypto.randomBytes(32));
     let session: Session | undefined;
     const failures: string[] = [];
-    for (const t of (await targets('long')).slice(0, 6)) {
+    for (const t of (await targets('long')).slice(0, 12)) {
+        let c: Awaited<ReturnType<typeof socket>> | undefined;
         try {
-            const c = await socket(t.ip, t.port);
+            c = await socket(t.ip, t.port, 5000);
             const a = ecdh(); const b = ecdh(); const hello = ch(a.pub, b.pub);
             await c.send(rec(0x16, hello));
             const sh = await c.take();
@@ -141,6 +201,7 @@ export async function getNativeWxLoginCode(loginBuffer: string, appId: string): 
                 }
             }
         } catch (error: any) { failures.push(`${t.ip}:${t.port} ${String(error?.message || error).slice(0, 120)}`); }
+        finally { c?.close(); }
         if (session) break;
     }
     if (!session) throw new Error(`Unable to establish WeChat protocol session: ${failures.join('; ') || 'no HTTPDNS target succeeded'}`);
@@ -157,9 +218,16 @@ export async function getNativeWxLoginCode(loginBuffer: string, appId: string): 
         const c = await socket(target.ip, target.port, 8000);
         const chunks: Buffer[] = [];
         c.s.on('data', chunk => chunks.push(Buffer.from(chunk)));
-        await c.send(Buffer.concat([U8(requestHead), body]));
-        await new Promise<void>(resolve => { c.s.on('end', resolve); setTimeout(resolve, 8000); });
-        c.close();
+        try {
+            await c.send(Buffer.concat([U8(requestHead), body]));
+            await new Promise<void>(resolve => {
+                const done = () => { clearTimeout(timer); c.s.off('close', done); c.s.off('end', done); resolve(); };
+                const timer = setTimeout(done, 8000);
+                c.s.once('end', done);
+                c.s.once('close', done);
+                if (c.s.destroyed) done();
+            });
+        } finally { c.close(); }
         const raw = Buffer.concat(chunks);
         const headerEnd = raw.indexOf('\r\n\r\n');
         if (headerEnd < 0) throw new Error('ShortLink returned an invalid HTTP response');

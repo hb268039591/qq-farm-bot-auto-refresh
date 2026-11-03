@@ -67,6 +67,7 @@ export interface QuietHoursConfig {
 }
 
 export interface AccountConfig {
+  autoCodeRefresh: { enabled: boolean; intervalMinutes: number };
   automation: AutomationConfig;
   plantingStrategy: PlantingStrategy;
   preferredSeedId: number;

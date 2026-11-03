@@ -77,6 +77,7 @@ export interface SettingsState {
   bagSeedFallbackStrategy: string
   intervals: IntervalsConfig
   friendQuietHours: FriendQuietHoursConfig
+  autoCodeRefresh: { enabled: boolean, intervalMinutes: number }
   automation: AutomationConfig
   ui: UIConfig
   offlineReminder: OfflineConfig
@@ -104,6 +105,7 @@ type SaveableSettingsKey
     | 'bagSeedFallbackStrategy'
     | 'intervals'
     | 'friendQuietHours'
+    | 'autoCodeRefresh'
     | 'automation'
     | 'stealDelaySeconds'
     | 'plantOrderRandom'
@@ -130,6 +132,7 @@ const SAVEABLE_SETTINGS_KEYS: SaveableSettingsKey[] = [
   'bagSeedFallbackStrategy',
   'intervals',
   'friendQuietHours',
+  'autoCodeRefresh',
   'automation',
   'stealDelaySeconds',
   'plantOrderRandom',
@@ -156,6 +159,7 @@ function createDefaultSettings(): SettingsState {
     bagSeedFallbackStrategy: 'level',
     intervals: {},
     friendQuietHours: { enabled: false, start: '23:00', end: '07:00', continueFarm: true },
+    autoCodeRefresh: { enabled: true, intervalMinutes: 60 },
     automation: {},
     ui: {},
     offlineReminder: {
@@ -221,6 +225,7 @@ export const useSettingStore = defineStore('setting', () => {
         ...defaults.friendQuietHours,
         ...(cloneValue(data.friendQuietHours) || {}),
       },
+      autoCodeRefresh: { ...defaults.autoCodeRefresh, ...cloneValue(data.autoCodeRefresh || {}) },
       automation: cloneValue(data.automation || defaults.automation),
       ui: cloneValue(data.ui || defaults.ui),
       offlineReminder: {

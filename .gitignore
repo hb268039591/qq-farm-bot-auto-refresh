@@ -3,9 +3,6 @@ node_modules/
 bun.lock
 
 # Build output
-core/dist/
-web/dist/
-core/client.js
 
 # Runtime data (contains user credentials and logs)
 core/data/
@@ -57,3 +54,17 @@ cleanup.bat
 # Local protocol captures and generated runtime analysis
 protocol-captures/
 /docs/performance-analysis/
+
+# Local deployment settings and credentials
+.env
+.env.*
+!.env.example
+!.env.nas.example
+data/
+**/accounts.json
+**/admin.json
+github-auth/
+*.pem
+*.key
+
+# Keep compiled runtime files so NAS can build with Dockerfile.nas

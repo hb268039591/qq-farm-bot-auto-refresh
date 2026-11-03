@@ -31,6 +31,7 @@ interface WorkerManagerOptions {
     sendConfiguredPush?: (payload: any) => Promise<void> | void;
     addOrUpdateAccount: (acc: any) => any;
     deleteAccount: (id: string) => void;
+    scheduleAutoRelogin?: (accountId: string, reason: string) => boolean;
     onStatusSync?: (accountId: string, status: any, accountName?: string) => void;
     onWorkerLog?: (entry: any, accountId: string, accountName?: string) => void;
 }
@@ -54,6 +55,7 @@ function createWorkerManager(options: WorkerManagerOptions) {
         sendConfiguredPush,
         addOrUpdateAccount,
         deleteAccount,
+        scheduleAutoRelogin,
         onStatusSync,
         onWorkerLog,
     } = options;
@@ -180,6 +182,7 @@ function createWorkerManager(options: WorkerManagerOptions) {
 
             if (current && current.process === child) {
                 delete workers[account.id];
+                if (!current.stopping) scheduleAutoRelogin?.(String(account.id), `worker_exit:${code}`);
             }
         });
         return true;
@@ -201,16 +204,17 @@ function createWorkerManager(options: WorkerManagerOptions) {
         });
     }
 
-    function restartWorker(account: any): void {
+    function restartWorker(account: any, shouldRestart: () => boolean = () => true): void {
         if (!account) return;
         const accountId = account.id;
         const worker = workers[accountId];
-        if (!worker) { startWorker(account); return; }
+        if (!worker) { if (shouldRestart()) startWorker(account); return; }
         const proc = worker.process;
         let started = false;
         const startOnce = () => {
             if (started) return;
             started = true;
+            if (!shouldRestart()) return;
             managerScheduler.clear(`restart_fallback_${accountId}`);
             const current = workers[accountId];
             if (!current) { startWorker(account); return; }
@@ -378,6 +382,7 @@ function createWorkerManager(options: WorkerManagerOptions) {
             });
             addAccountLog('kickout_stop', `账号 ${worker.name} 被踢下线，已自动停止`, accountId, worker.name, { reason, reasonCode, diagnostics });
             stopWorker(accountId);
+            scheduleAutoRelogin?.(accountId, `kickout:${reason}`);
         } else if (msg.type === 'account_disconnected') {
             if (worker.terminalHandled) return;
             worker.terminalHandled = true;
@@ -393,7 +398,7 @@ function createWorkerManager(options: WorkerManagerOptions) {
                 }
                 worker.requests.clear();
             }
-            log('系统', `账号 ${worker.name} 连接已断开，已停止运行并等待 Helper 刷新 Code 或重新扫码`, {
+            log('系统', `账号 ${worker.name} 连接已断开，正在按自动刷新设置安排重登`, {
                 accountId: String(accountId),
                 accountName: worker.name,
                 source,
@@ -416,6 +421,7 @@ function createWorkerManager(options: WorkerManagerOptions) {
                 { source, disconnectCode: code, reason, phase, connectionId: Number(msg.connectionId) || 0, diagnostics: msg.diagnostics || null },
             );
             stopWorker(accountId);
+            scheduleAutoRelogin?.(accountId, `disconnect:${source}:${phase}:${code}`);
         } else if (msg.type === 'api_response') {
             const { id, result, error } = msg;
             managerScheduler.clear(`api_timeout_${accountId}_${id}`);

@@ -89,6 +89,7 @@ function getConfigSnapshot(accountId?: unknown): AccountConfig & { ui: typeof gl
     const cfg = getAccountConfigSnapshot(accountId);
     return {
         automation: { ...cfg.automation },
+        autoCodeRefresh: { ...cfg.autoCodeRefresh },
         plantingStrategy: cfg.plantingStrategy,
         preferredSeedId: cfg.preferredSeedId,
         intervals: { ...cfg.intervals },
@@ -132,6 +133,10 @@ function applyConfigSnapshot(snapshot: Record<string, any> | undefined, options:
 
     const current = getAccountConfigSnapshot(accountId);
     const next = normalizeAccountConfig(current, sharedState.accountFallbackConfig);
+
+    if (cfg.autoCodeRefresh && typeof cfg.autoCodeRefresh === 'object') {
+        next.autoCodeRefresh = sharedState.normalizeAutoCodeRefresh(cfg.autoCodeRefresh, next.autoCodeRefresh);
+    }
 
     if (cfg.automation && typeof cfg.automation === 'object') {
         for (const [k, v] of Object.entries(cfg.automation)) {

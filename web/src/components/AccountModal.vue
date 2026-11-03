@@ -74,7 +74,7 @@ async function addAccount(data: any, isRelogin = false) {
   loading.value = true
   errorMessage.value = ''
   try {
-    const res = await api.post('/api/accounts', { ...data, name })
+    const res = await api.post('/api/accounts', { ...data, name }, { timeout: 120000 })
     if (res.data.ok) {
       emit('saved')
       close()
@@ -100,6 +100,8 @@ function clearQrNameSubmitTimer() {
     qrNameSubmitTimer = undefined
   }
 }
+
+let wxCredentialTicket = ''
 
 async function addQrAccount(platform: 'wx' | 'qq', code: string, nickname: string) {
   const name = form.name.trim() || nickname
@@ -141,7 +143,7 @@ async function submitPendingQrAccount(platform: 'wx' | 'qq') {
     qqStatus.value = props.editData ? '正在重新登录...' : '正在添加账号...'
   }
 
-  const payload: any = { name, code, platform, loginType: 'manual' }
+  const payload: any = { name, code, platform, loginType: 'manual', ...(platform === 'wx' ? { wxCredentialTicket } : {}) }
   const saved = await addAccount(payload, !!props.editData)
   if (!saved && props.show && activeLoginTab.value === `${platform}_qr`) {
     if (platform === 'wx')
@@ -246,6 +248,7 @@ function resetWxLogin() {
   wxQrUrl.value = ''
   wxLoading.value = false
   wxPendingCode = ''
+  wxCredentialTicket = ''
   clearQrNameSubmitTimer()
 }
 
@@ -256,9 +259,10 @@ function isWxFlowActive(taskId: string, flowVersion: number) {
 async function getWxCodeAndAdd(taskId: string, flowVersion: number) {
   if (!isWxFlowActive(taskId, flowVersion))
     return
-  const codeResult = await api.post(`/api/wx-login/tasks/${taskId}/code`)
+  const codeResult = await api.post(`/api/wx-login/tasks/${taskId}/code`, {}, { timeout: 120000 })
   if (!isWxFlowActive(taskId, flowVersion))
     return
+  wxCredentialTicket = String(codeResult.data?.data?.wxCredentialTicket || '')
   const code = String(codeResult.data?.data?.code || '').trim()
   const nickname = String(codeResult.data?.data?.nickname || '').trim()
   if (!code)
@@ -271,7 +275,7 @@ async function confirmWxLogin(taskId: string, flowVersion: number) {
   if (!isWxFlowActive(taskId, flowVersion))
     return
   wxStatus.value = '正在建立登录会话...'
-  await api.post(`/api/wx-login/tasks/${taskId}/confirm`)
+  await api.post(`/api/wx-login/tasks/${taskId}/confirm`, {}, { timeout: 120000 })
   if (!isWxFlowActive(taskId, flowVersion))
     return
   await getWxCodeAndAdd(taskId, flowVersion)

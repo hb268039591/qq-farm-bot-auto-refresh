@@ -5,6 +5,7 @@ const { Worker } = require('node:worker_threads');
 const store = require('../models/store');
 const { updateRuntimeConfig, getRuntimeConfig, getDefaultSystemConfig } = require('../config/config');
 const { sendPushooMessage } = require('../services/push');
+const { createAutoCodeRefreshService } = require('./auto-code-refresh');
 const { createDataProvider } = require('./data-provider');
 const { createReloginReminderService } = require('./relogin-reminder');
 const { createRuntimeState } = require('./runtime-state');
@@ -66,6 +67,13 @@ function createRuntimeEngine(options: RuntimeEngineOptions = {}) {
         sendConfiguredPush,
     } = reloginReminder;
 
+    const autoCodeRefresh = createAutoCodeRefreshService({
+        store, log, addAccountLog,
+        resolveWorkerControls: () => ({ startWorker, stopWorker, restartWorker,
+            hasWorker: (id: string) => !!workers[id],
+            isRunning: (id: string) => !!workers[id] && !workers[id].stopping && !workers[id].terminalHandled }),
+    });
+
     const { startWorker, stopWorker, restartWorker, callWorkerApi } = createWorkerManager({
         fork,
         WorkerThread: Worker,
@@ -84,6 +92,7 @@ function createRuntimeEngine(options: RuntimeEngineOptions = {}) {
         sendConfiguredPush,
         addOrUpdateAccount: store.addOrUpdateAccount,
         deleteAccount: store.deleteAccount,
+        scheduleAutoRelogin: autoCodeRefresh.scheduleRelogin,
         onStatusSync: (accountId: string, status: any, accountName?: string) => {
             runtimeEvents.emit('status', { accountId, status, accountName });
             if (onStatusSync) onStatusSync(accountId, status, accountName);
@@ -108,9 +117,11 @@ function createRuntimeEngine(options: RuntimeEngineOptions = {}) {
         broadcastConfigToWorkers,
         buildConfigSnapshotForAccount,
         broadcastGameConfigReload,
-        startWorker,
-        stopWorker,
-        restartWorker,
+        startWorker: autoCodeRefresh.startAccount,
+        stopWorker: (id: string) => { autoCodeRefresh.stopAccount(id); stopWorker(id); },
+        restartWorker: autoCodeRefresh.restartAccount,
+        rescheduleAutoCodeRefresh: autoCodeRefresh.rescheduleAccount,
+        refreshAccountCode: autoCodeRefresh.refreshAccountCode,
     });
 
     runtimeEvents.on('log', (entry: any) => {
@@ -143,11 +154,11 @@ function createRuntimeEngine(options: RuntimeEngineOptions = {}) {
         }
     }
 
-    function startAllAccounts(): void {
+    async function startAllAccounts(): Promise<void> {
         const accounts = (store.getAccounts().accounts || []);
         if (accounts.length > 0) {
             log('系统', `发现 ${accounts.length} 个账号，正在启动...`);
-            accounts.forEach((acc: any) => startWorker(acc));
+            for (const acc of accounts) await autoCodeRefresh.startAccount(acc);
         } else {
             log('系统', '未发现账号，请访问管理面板添加账号');
         }
@@ -155,7 +166,7 @@ function createRuntimeEngine(options: RuntimeEngineOptions = {}) {
 
     async function start(options: { startAdminServer?: boolean; autoStartAccounts?: boolean } = {}): Promise<void> {
         const shouldStartAdminServer = options.startAdminServer !== false;
-        const shouldAutoStartAccounts = options.autoStartAccounts !== false;
+        const shouldAutoStartAccounts = options.autoStartAccounts !== false && processRef.env.FARM_AUTO_START !== '0';
 
         const savedSystemConfig = store.getSystemConfig();
         if (savedSystemConfig) {
@@ -168,11 +179,12 @@ function createRuntimeEngine(options: RuntimeEngineOptions = {}) {
         }
 
         if (shouldAutoStartAccounts) {
-            startAllAccounts();
+            await startAllAccounts();
         }
     }
 
     function stopAllAccounts(): void {
+        autoCodeRefresh.stopAll();
         for (const accountId of Object.keys(workers)) {
             stopWorker(accountId);
         }

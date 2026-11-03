@@ -60,6 +60,10 @@ function normalizeAccount(raw: any): Account {
         platform: String(source.platform || 'qq'),
         uin: String(source.uin || ''),
         qq: String(source.qq || source.uin || ''),
+        wxid: String(source.wxid || ''),
+        loginBuffer: String(source.loginBuffer || ''),
+        refreshtoken: String(source.refreshtoken || ''),
+        accesstoken: String(source.accesstoken || ''),
         avatar: String(source.avatar || source.avatarUrl || ''),
         createdAt: Number(source.createdAt) || Date.now(),
         updatedAt: Number(source.updatedAt) || Date.now(),
@@ -75,7 +79,7 @@ function addOrUpdateAccount(acc: Partial<Account> & { avatarUrl?: string }): Acc
     let touchedAccountId = '';
     const source: any = acc || {};
     const cleanAccount: any = {};
-    for (const key of ['id', 'name', 'code', 'platform', 'uin', 'qq', 'avatar', 'avatarUrl', 'nick']) {
+    for (const key of ['id', 'name', 'code', 'platform', 'uin', 'qq', 'avatar', 'avatarUrl', 'nick', 'wxid', 'loginBuffer', 'refreshtoken', 'accesstoken']) {
         if (source[key] !== undefined) cleanAccount[key] = source[key];
     }
     acc = cleanAccount;
@@ -95,6 +99,10 @@ function addOrUpdateAccount(acc: Partial<Account> & { avatarUrl?: string }): Acc
             platform: acc.platform || 'qq',
             uin: acc.uin ? String(acc.uin) : '',
             qq: acc.qq ? String(acc.qq) : (acc.uin ? String(acc.uin) : ''),
+            wxid: String(acc.wxid || ''),
+            loginBuffer: String(acc.loginBuffer || ''),
+            refreshtoken: String(acc.refreshtoken || ''),
+            accesstoken: String(acc.accesstoken || ''),
             avatar: acc.avatar || acc.avatarUrl || '',
             createdAt: Date.now(),
             updatedAt: Date.now(),

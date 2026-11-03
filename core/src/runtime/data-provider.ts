@@ -17,9 +17,11 @@ interface DataProviderOptions {
     broadcastConfigToWorkers: (accountId?: string) => void;
     buildConfigSnapshotForAccount: (accountId: string) => any;
     broadcastGameConfigReload?: () => void;
-    startWorker: (account: any) => boolean;
+    startWorker: (account: any, useExistingCode?: boolean) => boolean | Promise<boolean>;
     stopWorker: (accountId: string) => void;
-    restartWorker: (account: any) => void;
+    restartWorker: (account: any, useExistingCode?: boolean) => any;
+    rescheduleAutoCodeRefresh?: (id: string) => void;
+    refreshAccountCode?: (id: string, reason?: string) => Promise<boolean>;
 }
 
 function createDataProvider(options: DataProviderOptions) {
@@ -300,6 +302,7 @@ function createDataProvider(options: DataProviderOptions) {
             if (!Object.hasOwn(snapshot, 'preferredSeedId')) copyIfPresent('seedId', 'preferredSeedId');
             for (const key of [
                 'automation',
+                'autoCodeRefresh',
                 'intervals',
                 'friendQuietHours',
                 'stealDelaySeconds',
@@ -325,6 +328,7 @@ function createDataProvider(options: DataProviderOptions) {
 
             // One apply performs the only persistence for this save request.
             store.applyConfigSnapshot(snapshot, { accountId });
+            if (Object.hasOwn(snapshot, 'autoCodeRefresh')) options.rescheduleAutoCodeRefresh?.(accountId);
             const rev = nextConfigRevision();
             const config = buildConfigSnapshotForAccount(accountId);
             const { ui: _ui, ...savedConfig } = store.getConfigSnapshot(accountId);
@@ -405,6 +409,8 @@ function createDataProvider(options: DataProviderOptions) {
         getAccounts: () => {
             const data = getAccounts();
             data.accounts.forEach((a: any) => {
+                a.wxAutoRefreshAvailable = !!(a.wxid && a.loginBuffer);
+                delete a.loginBuffer; delete a.refreshtoken; delete a.accesstoken;
                 const worker = workers[a.id];
                 a.running = !!worker;
                 if (worker && worker.status && worker.status.status && worker.status.status.name) {
@@ -417,12 +423,13 @@ function createDataProvider(options: DataProviderOptions) {
             return data;
         },
 
-        startAccount: (accountRef: string) => {
+        refreshAccountCode: (accountRef: string) => options.refreshAccountCode?.(resolveAccountRefId(accountRef), 'manual'),
+
+        startAccount: async (accountRef: string, useExistingCode = false) => {
             const accountId = resolveAccountRefId(accountRef);
             const acc = findAccountByAnyRef(accountId || accountRef);
             if (!acc) return false;
-            startWorker(acc);
-            return true;
+            return await startWorker(acc, useExistingCode);
         },
 
         stopAccount: (accountRef: string) => {
@@ -433,12 +440,11 @@ function createDataProvider(options: DataProviderOptions) {
             return true;
         },
 
-        restartAccount: (accountRef: string) => {
+        restartAccount: async (accountRef: string, useExistingCode = false) => {
             const accountId = resolveAccountRefId(accountRef);
             const acc = findAccountByAnyRef(accountId || accountRef);
             if (!acc) return false;
-            restartWorker(acc);
-            return true;
+            return await restartWorker(acc, useExistingCode);
         },
 
         isAccountRunning: (accountRef: string) => {

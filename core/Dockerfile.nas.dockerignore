@@ -1,0 +1,11 @@
+.git
+**/node_modules
+data
+**/data
+**/tests
+docs
+tools
+web/src
+web/public
+*.zip
+*.log

@@ -26,6 +26,8 @@ function getAppRootForWritable(): string {
 }
 
 function getDataDir(): string {
+    const override = String(process.env.FARM_DATA_DIR || '').trim();
+    if (override) return path.resolve(override);
     return path.join(getAppRootForWritable(), 'data');
 }
 

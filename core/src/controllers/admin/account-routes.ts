@@ -7,6 +7,7 @@ export {};
  */
 
 const store = require('../../models/store');
+const { peekCredentialTicket, consumeCredentialTicket } = require('./wx-login-routes');
 const { addOrUpdateAccount, deleteAccount } = store;
 const { findAccountByRef } = require('../../services/account-resolver');
 const { updateRuntimeConfig, getRuntimeConfig, getDefaultSystemConfig, getDevicePresets, getTimeZoneOptions } = require('../../config/config');
@@ -19,13 +20,20 @@ const {
     resolveAccId,
 } = require('./middleware');
 
+function publicAccounts(data: any): any {
+    return { ...data, accounts: (data.accounts || []).map((account: any) => {
+        const { loginBuffer, refreshtoken, accesstoken, ...visible } = account;
+        return { ...visible, wxAutoRefreshAvailable: account.wxAutoRefreshAvailable ?? !!(account.wxid && loginBuffer) };
+    }) };
+}
+
 function mountAccountRoutes(app: Application, ctx: AdminContext): void {
 
     // API: 账号管理
     app.get('/api/accounts', (req: Request, res: Response) => {
         try {
             const data = ctx.provider.getAccounts();
-            res.json({ ok: true, data });
+            res.json({ ok: true, data: data?.accounts ? publicAccounts(data) : data });
         } catch (e: any) {
             handleApiError(res, e);
         }
@@ -55,13 +63,13 @@ function mountAccountRoutes(app: Application, ctx: AdminContext): void {
             if (ctx.provider && ctx.provider.addAccountLog) {
                 ctx.provider.addAccountLog('update', `更新账号备注: ${remark}`, accountId, remark);
             }
-            res.json({ ok: true, data });
+            res.json({ ok: true, data: data?.accounts ? publicAccounts(data) : data });
         } catch (e: any) {
             handleApiError(res, e);
         }
     });
 
-    app.post('/api/accounts', (req: Request, res: Response) => {
+    app.post('/api/accounts', async (req: Request, res: Response) => {
         try {
             const rawBody = (req.body && typeof req.body === 'object') ? req.body : {};
             const requestedName = typeof rawBody.name === 'string' ? rawBody.name.trim() : '';
@@ -99,7 +107,15 @@ function mountAccountRoutes(app: Application, ctx: AdminContext): void {
                 }
             }
 
+            const ticket = String(body.wxCredentialTicket || '');
+            // Credential fields are accepted only from this server's scan flow.
+            for (const key of ['wxid', 'loginBuffer', 'refreshtoken', 'accesstoken']) delete payload[key];
+            if (ticket) {
+                if (payload.platform !== 'wx') return res.status(400).json({ ok: false, error: '微信凭证只能绑定微信账号' });
+                Object.assign(payload, peekCredentialTicket(ticket, String(payload.code || '')));
+            }
             const data = addOrUpdateAccount(payload);
+            if (ticket) consumeCredentialTicket(ticket);
             if (ctx.provider.addAccountLog) {
                 const accountId = isUpdate ? String(payload.id) : String((data.accounts.at(-1) || {}).id || '');
                 const accountName = payload.name || '';
@@ -115,15 +131,15 @@ function mountAccountRoutes(app: Application, ctx: AdminContext): void {
             // 如果是新增，自动启动
             if (!isUpdate) {
                 const newAcc = data.accounts.at(-1);
-                if (newAcc) ctx.provider.startAccount(newAcc.id);
+                if (newAcc) await ctx.provider.startAccount(newAcc.id, true);
             } else if (isRemarkRelogin) {
                 // Adding with an existing remark is a relogin operation, including for stopped accounts.
-                ctx.provider.restartAccount(payload.id);
+                await ctx.provider.restartAccount(payload.id, !!body.code);
             } else if (wasRunning && !onlyRemarkChanged) {
                 // 如果是更新，且之前在运行，且不是仅修改备注，则重启
-                ctx.provider.restartAccount(payload.id);
+                await ctx.provider.restartAccount(payload.id, !!body.code);
             }
-            res.json({ ok: true, data });
+            res.json({ ok: true, data: data?.accounts ? publicAccounts(data) : data });
         } catch (e: any) {
             handleApiError(res, e);
         }
@@ -140,7 +156,7 @@ function mountAccountRoutes(app: Application, ctx: AdminContext): void {
             if (ctx.provider.addAccountLog) {
                 ctx.provider.addAccountLog('delete', `删除账号: ${(target && target.name) || req.params.id}`, resolvedId, target ? target.name : '');
             }
-            res.json({ ok: true, data });
+            res.json({ ok: true, data: data?.accounts ? publicAccounts(data) : data });
         } catch (e: any) {
             handleApiError(res, e);
         }
@@ -230,7 +246,7 @@ function mountAccountRoutes(app: Application, ctx: AdminContext): void {
                 });
             }
 
-            res.json({ ok: true, data });
+            res.json({ ok: true, data: data?.accounts ? publicAccounts(data) : data });
         } catch (e: any) {
             handleApiError(res, e);
         }
@@ -360,6 +376,7 @@ function mountAccountRoutes(app: Application, ctx: AdminContext): void {
             const strategy = id ? store.getPlantingStrategy(id) : null;
             const preferredSeed = id ? store.getPreferredSeed(id) : null;
             const friendQuietHours = id ? store.getFriendQuietHours(id) : null;
+            const autoCodeRefresh = store.getConfigSnapshot(id).autoCodeRefresh;
             const automation = id ? store.getAutomation(id) : {};
             const stealDelaySeconds = id && (typeof store.getStealDelaySeconds === 'function') ? store.getStealDelaySeconds(id) : 0;
             const plantOrderRandom = id && (typeof store.getPlantOrderRandom === 'function') ? store.getPlantOrderRandom(id) : false;
@@ -382,7 +399,7 @@ function mountAccountRoutes(app: Application, ctx: AdminContext): void {
             const offlineReminder = store.getOfflineReminder
                 ? store.getOfflineReminder()
                 : { channel: 'webhook', endpoint: '', token: '', secret: '', title: '账号下线提醒', msg: '账号下线', offlineDeleteSec: 0 };
-            res.json({ ok: true, data: { intervals, strategy, preferredSeed, friendQuietHours, automation, stealDelaySeconds, plantOrderRandom, plantDelaySeconds, fertilizerBuyOrganicCount, fertilizerBuyOrganicThresholdHours, fertilizerBuyNormalCount, fertilizerBuyNormalThresholdHours, fertilizerBuyCheckIntervalMinutes, bagSeedPriority, bagSeedMultiLandReservationEnabled, bagSeedLandTypes, bagSeedFallbackStrategy, autoAcceptFriendMinLevel, autoAcceptRequireOwnLevel, autoAcceptHarvestStealEnabled, autoAcceptHarvestStealHarvest, autoAcceptHarvestStealSteal, ui, offlineReminder } });
+            res.json({ ok: true, data: { intervals, strategy, preferredSeed, friendQuietHours, automation, autoCodeRefresh, stealDelaySeconds, plantOrderRandom, plantDelaySeconds, fertilizerBuyOrganicCount, fertilizerBuyOrganicThresholdHours, fertilizerBuyNormalCount, fertilizerBuyNormalThresholdHours, fertilizerBuyCheckIntervalMinutes, bagSeedPriority, bagSeedMultiLandReservationEnabled, bagSeedLandTypes, bagSeedFallbackStrategy, autoAcceptFriendMinLevel, autoAcceptRequireOwnLevel, autoAcceptHarvestStealEnabled, autoAcceptHarvestStealHarvest, autoAcceptHarvestStealSteal, ui, offlineReminder } });
         } catch (e: any) {
             handleApiError(res, e);
         }

@@ -107,7 +107,7 @@ export const useAccountStore = defineStore('account', () => {
   }
 
   async function startAccount(id: string) {
-    await api.post(`/api/accounts/${id}/start`)
+    await api.post(`/api/accounts/${id}/start`, {}, { timeout: 120000 })
     await fetchAccounts()
   }
 

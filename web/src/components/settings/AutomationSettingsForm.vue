@@ -8,6 +8,7 @@ import BaseSwitch from '@/components/ui/BaseSwitch.vue'
 
 export type AutomationSettingsFormModel = Pick<
   SettingsState,
+  | 'autoCodeRefresh'
   | 'automation'
   | 'fertilizerBuyOrganicCount'
   | 'fertilizerBuyOrganicThresholdHours'
@@ -36,6 +37,12 @@ const settings = defineModel<AutomationSettingsFormModel>({ required: true })
 
 <template>
   <div class="space-y-4">
+    <section class="farm-card rounded-2xl p-4 space-y-3">
+      <h4 class="text-base font-bold">微信自动刷新与掉线重登</h4>
+      <BaseSwitch v-model="settings.autoCodeRefresh.enabled" label="启用自动刷新 Code / 被挤下线后自动重登" />
+      <BaseInput v-model.number="settings.autoCodeRefresh.intervalMinutes" label="刷新 Code 间隔（分钟）" type="number" min="1" max="1440" />
+      <p class="text-xs text-gray-500">仅对内置微信扫码账号生效。运行中每 30 分钟续期凭证；断线后等待 1 分钟换码重登。手动停止后不会自动启动。连续失败 3 次或一天恢复 8 次后暂停恢复，请检查网络或重新扫码。</p>
+    </section>
     <div class="automation-card-layout">
       <div class="automation-card-column">
         <section class="farm-card rounded-2xl p-4">

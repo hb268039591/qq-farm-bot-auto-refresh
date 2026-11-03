@@ -861,6 +861,7 @@ function normalizeFertilizerLandTypes(input: unknown) {
 }
 
 const localAutomationSettings = ref({
+  autoCodeRefresh: { enabled: true, intervalMinutes: 60 },
   automation: {
     farm: false,
     farm_harvest_tiangong: true,
@@ -991,6 +992,7 @@ function syncLocalAutomationSettings() {
     if (localAutomationSettings.value.automation.show_manual_fertilizer === undefined) {
       localAutomationSettings.value.automation.show_manual_fertilizer = true
     }
+    localAutomationSettings.value.autoCodeRefresh = { ...(settings.value.autoCodeRefresh || { enabled: true, intervalMinutes: 60 }) }
     localAutomationSettings.value.fertilizerBuyOrganicCount = settings.value.fertilizerBuyOrganicCount ?? 10
     localAutomationSettings.value.fertilizerBuyOrganicThresholdHours = settings.value.fertilizerBuyOrganicThresholdHours ?? 10
     localAutomationSettings.value.fertilizerBuyNormalCount = settings.value.fertilizerBuyNormalCount ?? 10
