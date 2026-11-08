@@ -52,6 +52,13 @@ function harness() {
     return { service: require(id), calls, bag, shop, fund, goods, work, summary: milk.milk_tea.summary, setTime: v => now = v, failRefresh: () => failRefresh = true };
 }
 
+test('an open shop without employees exposes an empty slot list', async () => {
+    const h = harness();
+    delete h.shop.slots;
+    const result = await h.service.getMilkTeaActivity();
+    assert.deepEqual(result.shop.slots, []);
+});
+
 test('boost spends the checked horn once and returns actual awards, retaining success after refresh failure', async () => {
     const h = harness();
     const state = await h.service.getMilkTeaActivity();

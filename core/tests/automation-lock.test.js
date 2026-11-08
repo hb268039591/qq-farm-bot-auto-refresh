@@ -43,3 +43,40 @@ test('automation lock allows nested calls in the same task', async () => {
 
     assert.equal(maxActive, 2);
 });
+
+test('a delayed callback with an expired async lock context queues behind a live task', async () => {
+    const events = [];
+    let trigger;
+    let completion;
+    const ready = new Promise(resolve => { trigger = resolve; });
+    await runExclusiveAutomationTask('original', () => {
+        completion = ready.then(() => runExclusiveAutomationTask('late', () => events.push('late')));
+    });
+    let release;
+    const blocker = runExclusiveAutomationTask('live', async () => {
+        events.push('live-start');
+        await new Promise(resolve => { release = resolve; });
+        events.push('live-end');
+    });
+    await new Promise(resolve => setImmediate(resolve));
+    trigger();
+    await new Promise(resolve => setImmediate(resolve));
+    assert.deepEqual(events, ['live-start']);
+    release();
+    await Promise.all([blocker, completion]);
+    assert.deepEqual(events, ['live-start', 'live-end', 'late']);
+});
+
+test('detached work scheduled inside an active task waits for that task to release', async () => {
+    const events = [];
+    let detached;
+    await runExclusiveAutomationTask('parent', async () => {
+        events.push('parent-start');
+        detached = runExclusiveAutomationTask('continuation', () => events.push('continuation'), { detached: true });
+        await new Promise(resolve => setImmediate(resolve));
+        assert.deepEqual(events, ['parent-start']);
+        events.push('parent-end');
+    });
+    await detached;
+    assert.deepEqual(events, ['parent-start', 'parent-end', 'continuation']);
+});

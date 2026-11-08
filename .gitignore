@@ -67,4 +67,7 @@ github-auth/
 *.pem
 *.key
 
-# Keep compiled runtime files so NAS can build with Dockerfile.nas
+# Build from source in Docker; generated output is not versioned.
+core/dist/
+web/dist/
+core/client.js
