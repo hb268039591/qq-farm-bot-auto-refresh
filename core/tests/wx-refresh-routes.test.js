@@ -98,12 +98,19 @@ test('scan -> one-use credential ticket -> persisted account -> settings and red
             assert.equal(restarts[0].account.code, qr.code);
         });
         await t.test('settings save reaches persistence and reschedules the manager', async () => {
-            const result = await request('/api/settings/save', { autoCodeRefresh: { enabled: false, intervalMinutes: 23 } });
+            const result = await request('/api/settings/save', {
+                autoCodeRefresh: { enabled: false, intervalMinutes: 23 },
+                emailClaimHour: 18,
+                automation: { ranch_buy: false, ranch_strategy: 'bag_priority' },
+            });
             assert.equal(result.ok, true);
             assert.deepEqual(result.data.autoCodeRefresh, { enabled: false, intervalMinutes: 23 });
             assert.deepEqual(reschedules, ['1']);
             const fetched = await request('/api/settings');
             assert.deepEqual(fetched.data.autoCodeRefresh, { enabled: false, intervalMinutes: 23 });
+            assert.equal(fetched.data.emailClaimHour, 18);
+            assert.equal(fetched.data.automation.ranch_buy, false);
+            assert.equal(fetched.data.automation.ranch_strategy, 'bag_priority');
         });
         await t.test('unauthenticated calls cannot consume login tickets or read credentials', async () => {
             const response = await fetch(`${base}/api/accounts`);

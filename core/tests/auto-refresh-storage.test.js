@@ -53,3 +53,22 @@ test('new scanned accounts persist all credentials and default to automatic refr
     assert.equal(account.refreshtoken, old.refreshtoken);
     assert.deepEqual(store.getConfigSnapshot(account.id).autoCodeRefresh, { enabled: true, intervalMinutes: 60 });
 });
+
+test('ranch automation and scheduled email settings coexist with saved refresh credentials', () => {
+    const before = store.getConfigSnapshot('1').autoCodeRefresh;
+    store.applyConfigSnapshot({
+        emailClaimHour: 18,
+        automation: { ranch_harvest: false, ranch_buy: false, ranch_strategy: 'bag_priority', ranch_grass_threshold_percent: 35 },
+    }, { accountId: '1' });
+    const snapshot = store.getConfigSnapshot('1');
+    assert.deepEqual(snapshot.autoCodeRefresh, before);
+    assert.equal(snapshot.emailClaimHour, 18);
+    assert.equal(snapshot.automation.ranch_harvest, false);
+    assert.equal(snapshot.automation.ranch_buy, false);
+    assert.equal(snapshot.automation.ranch_strategy, 'bag_priority');
+    assert.equal(snapshot.automation.ranch_grass_threshold_percent, 35);
+    assert.equal(store.getAccounts().accounts[0].refreshtoken, 'renewed');
+    store.applyConfigSnapshot({ autoCodeRefresh: { enabled: true, intervalMinutes: 29 } }, { accountId: '1' });
+    assert.equal(store.getConfigSnapshot('1').emailClaimHour, 18);
+    assert.equal(store.getAutomation('1').ranch_strategy, 'bag_priority');
+});

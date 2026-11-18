@@ -5,6 +5,7 @@ import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseInput from '@/components/ui/BaseInput.vue'
 import BaseSelect from '@/components/ui/BaseSelect.vue'
 import BaseSwitch from '@/components/ui/BaseSwitch.vue'
+import HourInput from '@/components/ui/HourInput.vue'
 
 export type AutomationSettingsFormModel = Pick<
   SettingsState,
@@ -20,31 +21,114 @@ export type AutomationSettingsFormModel = Pick<
   | 'autoAcceptHarvestStealEnabled'
   | 'autoAcceptHarvestStealHarvest'
   | 'autoAcceptHarvestStealSteal'
->
+> & { emailClaimHour: number | string }
 
-defineProps<{
+withDefaults(defineProps<{
+  inRanch?: boolean
+  panel?: 'automation' | 'strategy'
+  /** 页面级统一保存时隐藏表单自带的底部按钮。 */
+  hideSave?: boolean
+  ranchAnimalOptions?: Array<{ value: number, label: string, kind: string }>
   saving: boolean
   fertilizerLandTypeOptions: Array<{ label: string, value: string }>
   fertilizerOptions: Array<{ label: string, value: string }>
-}>()
+}>(), { inRanch: false, panel: 'automation', ranchAnimalOptions: () => [] })
 
 const emit = defineEmits<{
   save: []
 }>()
 
 const settings = defineModel<AutomationSettingsFormModel>({ required: true })
+const ranchSwitches = [
+  ['ranch_harvest', '自动收获'],
+  ['ranch_produce', '自动生产'],
+  ['ranch_buy', '自动补栏（金券）'],
+  ['ranch_upgrade', '自动升级建筑（金券）'],
+  ['ranch_sell', '自动出售产物'],
+  ['ranch_market_organic', '仓鼠集市兑换有机化肥（便便）'],
+  ['ranch_clean', '自动清理'],
+  ['ranch_grass', '自动补充牧草'],
+  ['ranch_grass_buy', '牧草不足时购买（金券）'],
+  ['ranch_fill_cans', '自动填充库存罐头'],
+  ['ranch_feed_normal', '普通罐头喂养'],
+  ['ranch_feed_organic', '有机罐头喂养'],
+  ['ranch_task', '自动领取任务奖励'],
+  ['ranch_share', '每日分享礼包'],
+  ['ranch_daily_benefit', '每日商城福利'],
+] as const
+const ranchFriendSwitches = [
+  ['ranch_friend_steal', '自动偷取产物'],
+  ['ranch_friend_clean', '自动清理'],
+  ['ranch_stroke', '自动抚摸动物'],
+  ['ranch_friend_mosquito', '自动放蚊子'],
+] as const
+const ranchStrategies = [
+  { label: '按已解锁等级', value: 'level' },
+  { label: '指定动物', value: 'preferred' },
+  { label: '优先背包幼崽', value: 'bag_priority' },
+]
 </script>
 
 <template>
   <div class="space-y-4">
-    <section class="farm-card rounded-2xl p-4 space-y-3">
+    <section v-if="!inRanch" class="farm-card rounded-2xl p-4 space-y-3">
       <h4 class="text-base font-bold">微信自动刷新与掉线重登</h4>
       <BaseSwitch v-model="settings.autoCodeRefresh.enabled" label="启用自动刷新 Code / 被挤下线后自动重登" />
       <BaseInput v-model.number="settings.autoCodeRefresh.intervalMinutes" label="刷新 Code 间隔（分钟）" type="number" min="1" max="1440" />
       <p class="text-xs text-gray-500">仅对内置微信扫码账号生效。运行中每 30 分钟续期凭证；断线后等待 1 分钟换码重登。手动停止后不会自动启动。连续失败 3 次或一天恢复 8 次后暂停恢复，请检查网络或重新扫码。</p>
     </section>
-    <div class="automation-card-layout">
-      <div class="automation-card-column">
+    <div class="automation-card-layout" :class="{ 'automation-card-layout--single': inRanch }">
+      <div v-if="inRanch" class="automation-card-column">
+        <section class="farm-card rounded-2xl p-4">
+          <div class="mb-4 flex items-start gap-3">
+            <div class="h-9 w-9 flex shrink-0 items-center justify-center rounded-lg bg-green-50 text-green-600 dark:bg-green-900/25 dark:text-green-400">
+              <span class="i-fa-solid-paw text-xl" />
+            </div>
+            <div>
+              <h4 class="text-base text-gray-900 font-bold dark:text-gray-100">
+                {{ panel === 'strategy' ? '养殖策略' : '日常牧场' }}
+              </h4>
+              <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                {{ panel === 'strategy' ? '按窝、棚空位补栏，优先使用所选动物的库存幼崽' : '管理生产、收获、补栏与每日奖励' }}
+              </p>
+            </div>
+          </div>
+          <div v-if="panel === 'automation'" class="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <div v-for="[key, label] in ranchSwitches" :key="key" class="automation-setting-item">
+              <BaseSwitch v-model="settings.automation[key]" :label="label" :disabled="key === 'ranch_grass_buy' && !settings.automation.ranch_grass" />
+            </div>
+            <div class="col-span-full text-xs text-gray-500 dark:text-gray-400">
+              仓鼠集市仅用便便，优先兑换4小时再兑换1小时；每6小时检查，便便增加即触发兑换。
+            </div>
+            <div class="automation-setting-item">
+              <BaseInput v-model.number="settings.automation.ranch_grass_threshold_percent" class="w-full" label="牧草余量低于（%）时补满" type="number" min="1" max="100" step="1" :disabled="!settings.automation.ranch_grass" />
+            </div>
+            <div class="automation-setting-item">
+              <BaseInput v-model.number="settings.automation.ranch_check_minutes" class="w-full" label="巡查间隔（分钟）" type="number" min="1" max="60" step="1" />
+            </div>
+          </div>
+          <div v-if="panel === 'automation'" class="mt-4">
+            <h4 class="mb-2 text-sm font-bold">
+              好友互动
+            </h4>
+            <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <div v-for="[key, label] in ranchFriendSwitches" :key="key" class="automation-setting-item">
+                <BaseSwitch v-model="settings.automation[key]" :label="label" />
+              </div>
+            </div>
+          </div>
+          <div v-else class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <BaseSelect v-model="settings.automation.ranch_strategy" label="养殖策略" :options="ranchStrategies" />
+            <BaseSelect v-if="settings.automation.ranch_strategy === 'bag_priority'" v-model="settings.automation.ranch_bag_fallback" label="库存不足时" :options="ranchStrategies.slice(0, 2)" />
+            <template v-if="settings.automation.ranch_strategy === 'preferred' || settings.automation.ranch_strategy === 'bag_priority' && settings.automation.ranch_bag_fallback === 'preferred'">
+              <BaseSelect v-model="settings.automation.ranch_coop_animal" label="窝 · 指定动物" :options="[{ value: 0, label: '不购买' }, ...ranchAnimalOptions.filter(animal => animal.kind === '窝')]" />
+              <BaseSelect v-model="settings.automation.ranch_shed_animal" label="棚 · 指定动物" :options="[{ value: 0, label: '不购买' }, ...ranchAnimalOptions.filter(animal => animal.kind === '棚')]" />
+            </template>
+          </div>
+        </section>
+      </div>
+
+      <div v-if="!inRanch" class="automation-card-column">
         <section class="farm-card rounded-2xl p-4">
           <div class="mb-4 flex items-start gap-3">
             <div class="h-9 w-9 flex shrink-0 items-center justify-center rounded-lg bg-green-50 text-green-600 dark:bg-green-900/25 dark:text-green-400">
@@ -82,8 +166,16 @@ const settings = defineModel<AutomationSettingsFormModel>({ required: true })
             <div class="automation-setting-item">
               <BaseSwitch v-model="settings.automation.sell" class="automation-setting-item" label="自动卖果实" />
             </div>
-            <div class="automation-setting-item sm:col-span-2">
+            <div class="automation-setting-item">
               <BaseSwitch v-model="settings.automation.fertilizer_gift" class="automation-setting-item" label="自动填充化肥" />
+            </div>
+            <div class="automation-setting-item">
+              <HourInput
+                v-model="settings.emailClaimHour"
+                class="w-full"
+                label="自动邮箱领取（时）"
+                help="默认 10 时，每天检查一次；0 时为午夜。加减到边界会循环。"
+              />
             </div>
           </div>
         </section>
@@ -188,7 +280,7 @@ const settings = defineModel<AutomationSettingsFormModel>({ required: true })
         </section>
       </div>
 
-      <div class="automation-card-column">
+      <div v-if="!inRanch" class="automation-card-column">
         <section class="farm-card rounded-2xl p-4">
           <div class="mb-4 flex items-start gap-3">
             <div class="h-9 w-9 flex shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-600 dark:bg-blue-900/25 dark:text-blue-400">
@@ -330,7 +422,7 @@ const settings = defineModel<AutomationSettingsFormModel>({ required: true })
       </div>
     </div>
 
-    <div class="flex justify-end gap-2 border-t pt-3 dark:border-gray-700">
+    <div v-if="!hideSave" class="flex justify-end gap-2 border-t pt-3 dark:border-gray-700">
       <BaseButton variant="primary" size="sm" :loading="saving" @click="emit('save')">
         保存自动控制
       </BaseButton>
@@ -385,5 +477,8 @@ const settings = defineModel<AutomationSettingsFormModel>({ required: true })
   .automation-card-layout section {
     margin-bottom: 1rem;
   }
+}
+.automation-card-layout--single {
+  display: block;
 }
 </style>

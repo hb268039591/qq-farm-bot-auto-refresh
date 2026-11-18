@@ -31,6 +31,16 @@ const fertilizerLandTypeOptions = [
 
 const router = useRouter()
 const route = useRoute()
+const inRanch = computed(() => route.meta.gameSpace === 'ranch')
+const ranchAnimalOptions = ref<Array<{ value: number, label: string, kind: string }>>([])
+onMounted(async () => {
+  try {
+    const response = await api.get('/api/ranch/automation-options')
+    if (response.data.ok)
+      ranchAnimalOptions.value = response.data.data
+  }
+  catch (error) { showAlert(getApiErrorMessage(error, '牧场动物选项读取失败'), 'danger') }
+})
 const accountStore = useAccountStore()
 const userStore = useUserStore()
 const settingStore = useSettingStore()
@@ -39,10 +49,13 @@ const statusStore = useStatusStore()
 type SettingsTab = 'account' | 'strategy' | 'automation' | 'system'
 const storedTab = localStorage.getItem('settings-active-tab')
 const settingsTabKeys: SettingsTab[] = ['account', 'strategy', 'automation', 'system']
+// 牧场的自动化与养殖策略已移到「牧场策略」页，设置页只保留账号与系统。
+const ranchTabKeys: SettingsTab[] = ['account', 'system']
 const queryTab = String(route.query.tab || '')
-const initialTab = settingsTabKeys.includes(queryTab as SettingsTab)
+const storedInitialTab = settingsTabKeys.includes(queryTab as SettingsTab)
   ? queryTab as SettingsTab
   : storedTab === 'user' ? 'system' : (storedTab as SettingsTab) || 'account'
+const initialTab = inRanch.value && !ranchTabKeys.includes(storedInitialTab) ? 'account' : storedInitialTab
 const activeTab = ref<SettingsTab>(initialTab)
 
 watch(activeTab, (newTab) => {
@@ -56,6 +69,8 @@ watch(activeTab, (newTab) => {
 
 watch(() => route.query.tab, (value) => {
   const nextTab = String(value || '')
+  if (inRanch.value && !ranchTabKeys.includes(nextTab as SettingsTab))
+    return
   if (settingsTabKeys.includes(nextTab as SettingsTab) && nextTab !== activeTab.value)
     activeTab.value = nextTab as SettingsTab
 })
@@ -66,6 +81,8 @@ const tabs = [
   { key: 'automation', label: '自动控制', icon: 'i-carbon-settings-adjust' },
   { key: 'system', label: '系统设置', icon: 'i-carbon-settings' },
 ] as const
+
+const visibleTabs = computed(() => inRanch.value ? tabs.filter(tab => ranchTabKeys.includes(tab.key)) : tabs)
 
 function setActiveTab(value: string) {
   if (tabs.some(tab => tab.key === value))
@@ -898,6 +915,7 @@ const localAutomationSettings = ref({
   fertilizerBuyNormalCount: 10,
   fertilizerBuyNormalThresholdHours: 10,
   fertilizerBuyCheckIntervalMinutes: 30,
+  emailClaimHour: 10 as number | string,
   autoAcceptFriendMinLevel: 0,
   autoAcceptRequireOwnLevel: false,
   autoAcceptHarvestStealEnabled: true,
@@ -998,6 +1016,7 @@ function syncLocalAutomationSettings() {
     localAutomationSettings.value.fertilizerBuyNormalCount = settings.value.fertilizerBuyNormalCount ?? 10
     localAutomationSettings.value.fertilizerBuyNormalThresholdHours = settings.value.fertilizerBuyNormalThresholdHours ?? 10
     localAutomationSettings.value.fertilizerBuyCheckIntervalMinutes = settings.value.fertilizerBuyCheckIntervalMinutes ?? 30
+    localAutomationSettings.value.emailClaimHour = settings.value.emailClaimHour
     localAutomationSettings.value.autoAcceptFriendMinLevel = settings.value.autoAcceptFriendMinLevel ?? 0
     localAutomationSettings.value.autoAcceptRequireOwnLevel = settings.value.autoAcceptRequireOwnLevel ?? false
     localAutomationSettings.value.autoAcceptHarvestStealEnabled = settings.value.autoAcceptHarvestStealEnabled ?? true
@@ -1012,8 +1031,11 @@ async function saveAutomationSettings() {
     return
   automationSaving.value = true
   try {
-    const payload = JSON.parse(JSON.stringify(localAutomationSettings.value))
-    payload.automation.fertilizer_land_types = normalizeFertilizerLandTypes(payload.automation.fertilizer_land_types)
+    const source = localAutomationSettings.value
+    const automation = Object.fromEntries(Object.entries(source.automation).filter(([key]) => key.startsWith('ranch_') === inRanch.value))
+    const payload = inRanch.value ? { automation } : { ...JSON.parse(JSON.stringify(source)), automation }
+    if (!inRanch.value)
+      payload.automation.fertilizer_land_types = normalizeFertilizerLandTypes(payload.automation.fertilizer_land_types)
     const res = await settingStore.saveSettings(accountId, payload)
     if (accountId !== currentAccountId.value)
       return
@@ -1022,7 +1044,7 @@ async function saveAutomationSettings() {
       showAlert('自动控制设置已保存', 'primary')
 
       // 如果启用了自动购买化肥，立即检测并购买
-      if (payload.automation.fertilizer_buy_organic || payload.automation.fertilizer_buy_normal) {
+      if (!inRanch.value && (payload.automation.fertilizer_buy_organic || payload.automation.fertilizer_buy_normal)) {
         try {
           const buyRes = await api.post('/api/fertilizer/check-and-buy', {
             buyOrganic: payload.automation.fertilizer_buy_organic,
@@ -1473,7 +1495,7 @@ async function handleResetSystemConfig() {
   <div class="settings-page page-stack">
     <div class="settings-content">
       <PageTabs :value="activeTab" @update:value="setActiveTab">
-        <NTab v-for="tab in tabs" :key="tab.key" :name="tab.key">
+        <NTab v-for="tab in visibleTabs" :key="tab.key" :name="tab.key">
           <span class="inline-flex items-center gap-2">
             <span :class="tab.icon" />
             {{ tab.label }}
@@ -1661,7 +1683,7 @@ async function handleResetSystemConfig() {
         </div>
 
         <!-- 策略设置 -->
-        <div v-else-if="activeTab === 'strategy'" class="space-y-4">
+        <div v-else-if="activeTab === 'strategy' && !inRanch" class="space-y-4">
           <div class="flex items-center justify-between">
             <h3 class="flex items-center gap-2 text-lg text-gray-900 font-bold dark:text-gray-100">
               <div class="i-fas-cog text-lg" />
@@ -1936,6 +1958,8 @@ async function handleResetSystemConfig() {
             v-else
             v-model="localAutomationSettings"
             :saving="automationSaving"
+            :in-ranch="inRanch"
+            :ranch-animal-options="ranchAnimalOptions"
             :fertilizer-land-type-options="fertilizerLandTypeOptions"
             :fertilizer-options="fertilizerOptions"
             @save="saveAutomationSettings"

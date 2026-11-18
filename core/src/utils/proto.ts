@@ -20,6 +20,9 @@ async function loadProto(): Promise<void> {
         getResourcePath('proto', 'userpb.proto'),
         getResourcePath('proto', 'player-login.proto'),
         getResourcePath('proto', 'globalscenepb.proto'),
+        getResourcePath('proto', 'animalpb.proto'),
+        getResourcePath('proto', 'homesteadpb.proto'),
+        getResourcePath('proto', 'ranchpb.proto'),
         getResourcePath('proto', 'plantpb.proto'),
         getResourcePath('proto', 'corepb.proto'),
         getResourcePath('proto', 'shoppb.proto'),
@@ -39,6 +42,7 @@ async function loadProto(): Promise<void> {
         getResourcePath('proto', 'collectionpb.proto'),
         getResourcePath('proto', 'interactpb.proto'),
         getResourcePath('proto', 'activitypb.proto'),
+        getResourcePath('proto', 'muge.proto'),
         getResourcePath('proto', 'seasonpb.proto'),
         getResourcePath('proto', 'solartermspb.proto'),
         getResourcePath('proto', 'randomdroppb.proto'),
@@ -64,6 +68,9 @@ async function loadProto(): Promise<void> {
     types.EventMessage = root.lookupType('gatepb.EventMessage');
 
     types.AutumnOperateRequest = root.lookupType('gamepb.activitypb.AutumnOperateRequest');
+    for (const name of ['MugeListReply', 'MugeOperateRequest', 'MugeOperateReply']) {
+        types[name] = root.lookupType(`gamepb.activitypb.${name}`);
+    }
 
     types.MilkTeaOperateReply = root.lookupType('gamepb.activitypb.MilkTeaOperateReply');
     types.MilkTeaGetGroupReply = root.lookupType('gamepb.activitypb.MilkTeaGetGroupReply');
@@ -72,6 +79,13 @@ async function loadProto(): Promise<void> {
     types.PlayerLoginReply = root.lookupType('gamepb.userpb.PlayerLoginReply');
     types.PlayerSceneLoginRequest = root.lookupType('gamepb.globalscenepb.PlayerSceneLoginRequest');
     types.PlayerSceneLoginReply = root.lookupType('gamepb.globalscenepb.PlayerSceneLoginReply');
+    types.GlobalSceneUnlockNotify = root.lookupType('gamepb.globalscenepb.GlobalSceneUnlockNotify');
+    for (const namespace of ['animalpb', 'homesteadpb', 'ranchpb']) {
+        const definitions = root.lookup(`gamepb.${namespace}`) as protobuf.Namespace;
+        for (const definition of definitions.nestedArray) {
+            if (definition instanceof protobufModule.Type) types[`Ranch${definition.name}`] = definition as protobuf.Type;
+        }
+    }
 
     // 用户
     types.LoginRequest = root.lookupType('gamepb.userpb.LoginRequest');
@@ -221,6 +235,8 @@ async function loadProto(): Promise<void> {
     types.BatchClaimTaskRewardReply = root.lookupType('gamepb.taskpb.BatchClaimTaskRewardReply');
     types.ClaimDailyRewardRequest = root.lookupType('gamepb.taskpb.ClaimDailyRewardRequest');
     types.ClaimDailyRewardReply = root.lookupType('gamepb.taskpb.ClaimDailyRewardReply');
+    types.ClientReportProgressRequest = root.lookupType('gamepb.taskpb.ClientReportProgressRequest');
+    types.ClientReportProgressReply = root.lookupType('gamepb.taskpb.ClientReportProgressReply');
 
     // 邮箱
     types.GetEmailListRequest = root.lookupType('gamepb.emailpb.GetEmailListRequest');

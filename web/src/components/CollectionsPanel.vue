@@ -13,6 +13,7 @@ import BookSection from '@/components/illustrated/BookSection.vue'
 import BookTile from '@/components/illustrated/BookTile.vue'
 import BookToolbar from '@/components/illustrated/BookToolbar.vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
+import { vLazySrc } from '@/directives/lazy-src'
 import { useAccountStore } from '@/stores/account'
 import { useCollectionsStore } from '@/stores/collections'
 import { useStatusStore } from '@/stores/status'
@@ -262,7 +263,7 @@ onBeforeUnmount(() => store.reset())
 
     <NModal v-model:show="rewardsOpen">
       <NCard class="max-w-xl w-[calc(100vw-32px)]" title="藏品评分奖励" closable @close="rewardsOpen = false">
-        <div class="milestone-list custom-scrollbar">
+        <div class="milestone-list dialog-scroll custom-scrollbar">
           <div v-for="milestone in data?.milestones" :key="milestone.level" class="milestone" :class="{ 'is-claimed': milestone.claimed, 'is-reached': milestone.reached && !milestone.claimed }">
             <div class="milestone__score">
               <b>{{ milestone.score.toLocaleString() }}</b><small>评分</small>
@@ -270,7 +271,7 @@ onBeforeUnmount(() => store.reset())
             <div class="milestone__rewards">
               <span v-for="buff in milestone.buffs" :key="buff.id" class="milestone__buff">{{ buff.description }}</span>
               <span v-for="reward in milestone.rewards" :key="reward.itemId">
-                <img v-if="reward.image" :src="reward.image" alt="">{{ reward.name }} ×{{ reward.count }}
+                <img v-if="reward.image" v-lazy-src="reward.image" alt="" loading="lazy" decoding="async">{{ reward.name }} ×{{ reward.count }}
               </span>
             </div>
             <NButton v-if="milestone.reached && !milestone.claimed" size="small" type="primary" :loading="pending === 'claim'" :disabled="!!pending || loading" title="领取全部已达标奖励" @click="operate('claim', {}, '已领取全部达标评分奖励')">

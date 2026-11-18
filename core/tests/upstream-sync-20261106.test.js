@@ -8,12 +8,12 @@ const { buildLandUpgradeDetail } = require('../dist/services/farm/land-upgrade')
 const config = require('../dist/config/config');
 const { TSDK_BUILDS } = require('../dist/utils/tsdk-runtime');
 
-test('20261106 update keeps both protocol versions and audited WASM files aligned', () => {
-    assert.equal(config.DEFAULT_CLIENT_VERSION, '1.16.3.8_20261028');
-    assert.equal(config.DEFAULT_WX_CLIENT_VERSION, '1.16.3.8_20261028');
+test('20261118 update keeps both protocol versions and audited WASM files aligned', () => {
+    assert.equal(config.DEFAULT_CLIENT_VERSION, '1.17.0.4_20261117');
+    assert.equal(config.DEFAULT_WX_CLIENT_VERSION, '1.17.0.4_20261117');
     const hashes = {
-        qq: '253033edbfa7bde60de71f198d207cc862b0db479ab843ec61099e1f24360165',
-        wx: '41e5e9c01e8168e2caeaefcbff346252edfbed4e693b88fcae041f2eb3bffc87',
+        qq: 'ab6eb0f0ee86ce8984b0c37a481ff51e7722961ff0b50a9f91e2fa9ff351ce74',
+        wx: 'd14a4f5d59c8a27128019dbad25fe3cd3d5243dfc389eb9bcbb345efb1cebc9a',
     };
     for (const [platform, expected] of Object.entries(hashes)) {
         const build = TSDK_BUILDS[platform];
@@ -55,4 +55,18 @@ test('blue crystal land has its own level-six image and missing sibling conditio
     assert.equal(detail.precedingLands.met, null);
     assert.equal(detail.unknown, true);
     assert.ok(fs.existsSync(path.join(__dirname, '../../web/public/land-assets/6.png')));
+});
+
+test('ranch and muge protocol definitions load alongside the farm and retain large account ids', async () => {
+    await loadProto();
+    const enter = types.RanchEnterHomesteadRequest;
+    const wire = enter.encode(enter.fromObject({ host_gid: '9007199254740993', reason: 2 })).finish();
+    assert.equal(enter.decode(wire).host_gid.toString(), '9007199254740993');
+    for (const name of ['RanchRanchDetail', 'MugeListReply', 'MugeOperateRequest', 'MugeOperateReply']) {
+        assert.equal(typeof types[name]?.decode, 'function', name);
+    }
+    const { animalMap, facilityMap, itemMap } = require('../dist/services/ranch/model');
+    assert.ok(animalMap.size > 0);
+    assert.ok(facilityMap.size > 0);
+    assert.ok(itemMap.size > 0);
 });

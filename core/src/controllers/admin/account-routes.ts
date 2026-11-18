@@ -376,7 +376,9 @@ function mountAccountRoutes(app: Application, ctx: AdminContext): void {
             const strategy = id ? store.getPlantingStrategy(id) : null;
             const preferredSeed = id ? store.getPreferredSeed(id) : null;
             const friendQuietHours = id ? store.getFriendQuietHours(id) : null;
-            const autoCodeRefresh = store.getConfigSnapshot(id).autoCodeRefresh;
+            const accountConfig = store.getConfigSnapshot(id);
+            const autoCodeRefresh = accountConfig.autoCodeRefresh;
+            const emailClaimHour = accountConfig.emailClaimHour;
             const automation = id ? store.getAutomation(id) : {};
             const stealDelaySeconds = id && (typeof store.getStealDelaySeconds === 'function') ? store.getStealDelaySeconds(id) : 0;
             const plantOrderRandom = id && (typeof store.getPlantOrderRandom === 'function') ? store.getPlantOrderRandom(id) : false;
@@ -399,7 +401,7 @@ function mountAccountRoutes(app: Application, ctx: AdminContext): void {
             const offlineReminder = store.getOfflineReminder
                 ? store.getOfflineReminder()
                 : { channel: 'webhook', endpoint: '', token: '', secret: '', title: '账号下线提醒', msg: '账号下线', offlineDeleteSec: 0 };
-            res.json({ ok: true, data: { intervals, strategy, preferredSeed, friendQuietHours, automation, autoCodeRefresh, stealDelaySeconds, plantOrderRandom, plantDelaySeconds, fertilizerBuyOrganicCount, fertilizerBuyOrganicThresholdHours, fertilizerBuyNormalCount, fertilizerBuyNormalThresholdHours, fertilizerBuyCheckIntervalMinutes, bagSeedPriority, bagSeedMultiLandReservationEnabled, bagSeedLandTypes, bagSeedFallbackStrategy, autoAcceptFriendMinLevel, autoAcceptRequireOwnLevel, autoAcceptHarvestStealEnabled, autoAcceptHarvestStealHarvest, autoAcceptHarvestStealSteal, ui, offlineReminder } });
+            res.json({ ok: true, data: { intervals, strategy, preferredSeed, friendQuietHours, automation, autoCodeRefresh, emailClaimHour, stealDelaySeconds, plantOrderRandom, plantDelaySeconds, fertilizerBuyOrganicCount, fertilizerBuyOrganicThresholdHours, fertilizerBuyNormalCount, fertilizerBuyNormalThresholdHours, fertilizerBuyCheckIntervalMinutes, bagSeedPriority, bagSeedMultiLandReservationEnabled, bagSeedLandTypes, bagSeedFallbackStrategy, autoAcceptFriendMinLevel, autoAcceptRequireOwnLevel, autoAcceptHarvestStealEnabled, autoAcceptHarvestStealHarvest, autoAcceptHarvestStealSteal, ui, offlineReminder } });
         } catch (e: any) {
             handleApiError(res, e);
         }

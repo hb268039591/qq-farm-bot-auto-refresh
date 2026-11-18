@@ -3,6 +3,31 @@ import { ref } from 'vue'
 import api, { getApiErrorMessage } from '@/api'
 
 export interface AutomationConfig {
+  ranch_harvest?: boolean
+  ranch_produce?: boolean
+  ranch_buy?: boolean
+  ranch_upgrade?: boolean
+  ranch_sell?: boolean
+  ranch_market_organic?: boolean
+  ranch_grass?: boolean
+  ranch_grass_buy?: boolean
+  ranch_grass_threshold_percent?: number
+  ranch_fill_cans?: boolean
+  ranch_feed_normal?: boolean
+  ranch_feed_organic?: boolean
+  ranch_clean?: boolean
+  ranch_stroke?: boolean
+  ranch_friend_steal?: boolean
+  ranch_friend_clean?: boolean
+  ranch_friend_mosquito?: boolean
+  ranch_task?: boolean
+  ranch_share?: boolean
+  ranch_daily_benefit?: boolean
+  ranch_check_minutes?: number
+  ranch_strategy?: string
+  ranch_bag_fallback?: string
+  ranch_coop_animal?: number
+  ranch_shed_animal?: number
   farm?: boolean
   farm_harvest_tiangong?: boolean
   farm_push?: boolean
@@ -89,6 +114,7 @@ export interface SettingsState {
   fertilizerBuyNormalCount: number
   fertilizerBuyNormalThresholdHours: number
   fertilizerBuyCheckIntervalMinutes: number
+  emailClaimHour: number
   autoAcceptFriendMinLevel: number
   autoAcceptRequireOwnLevel: boolean
   autoAcceptHarvestStealEnabled: boolean
@@ -115,6 +141,7 @@ type SaveableSettingsKey
     | 'fertilizerBuyNormalCount'
     | 'fertilizerBuyNormalThresholdHours'
     | 'fertilizerBuyCheckIntervalMinutes'
+    | 'emailClaimHour'
     | 'autoAcceptFriendMinLevel'
     | 'autoAcceptRequireOwnLevel'
     | 'autoAcceptHarvestStealEnabled'
@@ -142,6 +169,7 @@ const SAVEABLE_SETTINGS_KEYS: SaveableSettingsKey[] = [
   'fertilizerBuyNormalCount',
   'fertilizerBuyNormalThresholdHours',
   'fertilizerBuyCheckIntervalMinutes',
+  'emailClaimHour',
   'autoAcceptFriendMinLevel',
   'autoAcceptRequireOwnLevel',
   'autoAcceptHarvestStealEnabled',
@@ -179,6 +207,7 @@ function createDefaultSettings(): SettingsState {
     fertilizerBuyNormalCount: 10,
     fertilizerBuyNormalThresholdHours: 10,
     fertilizerBuyCheckIntervalMinutes: 30,
+    emailClaimHour: 10,
     autoAcceptFriendMinLevel: 0,
     autoAcceptRequireOwnLevel: false,
     autoAcceptHarvestStealEnabled: true,
@@ -240,6 +269,7 @@ export const useSettingStore = defineStore('setting', () => {
       fertilizerBuyNormalCount: data.fertilizerBuyNormalCount ?? defaults.fertilizerBuyNormalCount,
       fertilizerBuyNormalThresholdHours: data.fertilizerBuyNormalThresholdHours ?? defaults.fertilizerBuyNormalThresholdHours,
       fertilizerBuyCheckIntervalMinutes: data.fertilizerBuyCheckIntervalMinutes ?? defaults.fertilizerBuyCheckIntervalMinutes,
+      emailClaimHour: data.emailClaimHour ?? defaults.emailClaimHour,
       autoAcceptFriendMinLevel: data.autoAcceptFriendMinLevel ?? defaults.autoAcceptFriendMinLevel,
       autoAcceptRequireOwnLevel: data.autoAcceptRequireOwnLevel ?? defaults.autoAcceptRequireOwnLevel,
       autoAcceptHarvestStealEnabled: data.autoAcceptHarvestStealEnabled ?? defaults.autoAcceptHarvestStealEnabled,
