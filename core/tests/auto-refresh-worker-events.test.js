@@ -8,7 +8,8 @@ function fixture() {
     const children = [];
     class Child extends EventEmitter {
         constructor() { super(); children.push(this); }
-        postMessage() {}
+        messages = [];
+        postMessage(message) { this.messages.push(message); }
         terminate() { this.emit('exit', 0); }
     }
     const workers = {};
@@ -64,4 +65,22 @@ test('user stop cancels an already requested deferred worker restart', () => {
     assert.equal(f.children.length, 1);
     assert.equal(f.workers['1'], undefined);
     assert.equal(f.recoveries.length, 0);
+});
+
+test('ranch blacklist IPC sync coexists with a later kickout recovery', t => {
+    const id = require.resolve('../dist/models/store');
+    const original = require.cache[id];
+    const added = [];
+    require.cache[id] = { id, filename: id, loaded: true, exports: {
+        addRanchFriendToBlacklist: (accountId, gid) => { added.push({ accountId, gid }); return true; },
+    } };
+    t.after(() => { if (original) require.cache[id] = original; else delete require.cache[id]; });
+    const f = fixture();
+    f.children[0].emit('message', { type: 'ranch_friend_blacklist_add', gid: 123456, friendName: 'test' });
+    assert.deepEqual(added, [{ accountId: '1', gid: 123456 }]);
+    assert.equal(f.children[0].messages.at(-1).type, 'config_sync');
+    f.children[0].emit('message', { type: 'ranch_friend_blacklist_add', gid: Number.MAX_SAFE_INTEGER + 1 });
+    assert.equal(added.length, 1);
+    f.children[0].emit('message', { type: 'account_kicked', reason: 'other login' });
+    assert.deepEqual(f.recoveries, [{ id: '1', reason: 'kickout:other login' }]);
 });

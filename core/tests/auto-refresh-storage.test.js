@@ -72,3 +72,41 @@ test('ranch automation and scheduled email settings coexist with saved refresh c
     assert.equal(store.getConfigSnapshot('1').emailClaimHour, 18);
     assert.equal(store.getAutomation('1').ranch_strategy, 'bag_priority');
 });
+
+test('new ranch controls, cub priorities and ranch blacklist preserve refresh settings independently', () => {
+    const { cubMap } = require('../dist/config/ranch-animals');
+    const cub = [...cubMap.entries()].find(([, animal]) => animal.husbandry_type === '窝');
+    assert.ok(cub);
+    const refresh = store.getConfigSnapshot('1').autoCodeRefresh;
+    store.applyConfigSnapshot({ automation: {
+        ranch_market_organic_poop: false, ranch_market_organic_pinecone: true,
+        ranch_feed_normal_stage: 'any', ranch_coop_cub_priority: [cub[0], cub[0]],
+    } }, { accountId: '1' });
+    store.setRanchFriendBlacklist('1', [123456]);
+    const snapshot = store.getConfigSnapshot('1');
+    assert.deepEqual(snapshot.autoCodeRefresh, refresh);
+    assert.equal(snapshot.automation.ranch_market_organic_poop, false);
+    assert.equal(snapshot.automation.ranch_market_organic_pinecone, true);
+    assert.equal(snapshot.automation.ranch_feed_normal_stage, 'any');
+    assert.deepEqual(snapshot.automation.ranch_coop_cub_priority, [cub[0]]);
+    assert.deepEqual(snapshot.ranchFriendBlacklist, [123456]);
+    assert.deepEqual(snapshot.friendBlacklist, []);
+    assert.equal(store.getAccounts().accounts[0].refreshtoken, 'renewed');
+});
+
+test('legacy ranch market switches migrate without enabling spending disabled by the old account', () => {
+    const { normalizeAccountConfig } = require('../dist/models/store/shared-state');
+    const snapshot = normalizeAccountConfig({
+        automation: { ranch_market_organic: false, ranch_buy: false, ranch_upgrade: false },
+        autoCodeRefresh: { enabled: false, intervalMinutes: 31 },
+    });
+    assert.equal(snapshot.automation.ranch_market_organic_poop, false);
+    assert.equal(snapshot.automation.ranch_market_organic_pinecone, false);
+    assert.equal(snapshot.automation.ranch_activate_shed, false);
+    assert.deepEqual(snapshot.autoCodeRefresh, { enabled: false, intervalMinutes: 31 });
+    const explicit = normalizeAccountConfig({ automation: {
+        ranch_market_organic: false, ranch_market_organic_pinecone: true,
+    } });
+    assert.equal(explicit.automation.ranch_market_organic_pinecone, true);
+    assert.equal(explicit.automation.ranch_market_organic_poop, false);
+});

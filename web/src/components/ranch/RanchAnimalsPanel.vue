@@ -1,41 +1,100 @@
 <script setup lang="ts">
 import { NButton } from 'naive-ui/es/button'
 import { storeToRefs } from 'pinia'
-import { computed } from 'vue'
+import { computed, watch } from 'vue'
 import { BUCKETS, formatCount, formatDuration, formatHours, RANCH_IMAGE, useRanchActions, useRanchClock, useRanchLoader } from '@/components/ranch/ranch-shared'
 import RanchAnimalCard from '@/components/ranch/RanchAnimalCard.vue'
+import RanchFeedMenu from '@/components/ranch/RanchFeedMenu.vue'
 import RanchGate from '@/components/ranch/RanchGate.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import { useRanchStore } from '@/stores/ranch'
 
 const { state, loading } = storeToRefs(useRanchStore())
 const { refresh } = useRanchLoader('animals')
-const { disabled, request } = useRanchActions()
+const { disabled, request, requestDirect } = useRanchActions()
 const { remainingSeconds } = useRanchClock()
 
 const pens = computed<any[]>(() => (state.value?.facilities || []).filter((f: any) => f.ranch))
 const animals = computed(() => pens.value.flatMap(f => (f.ranch.animals || []).map((animal: any) => ({ animal, pen: f.name }))))
+
+/**
+ * 按设施分组：窝（6）在前、棚（7）在后。服务器返回的设施顺序不固定，
+ * 组内再按栏位、实例编号排序，刷新后位置不变。
+ */
+const PEN_ORDER: Record<number, number> = { 6: 0, 7: 1 }
+const penGroups = computed(() => {
+  const groups = new Map<number, { type: number, name: string, count: number, capacity: number, animals: any[] }>()
+  for (const f of pens.value) {
+    const type = Number(f.moduleType)
+    const group = groups.get(type) || { type, name: f.name, count: 0, capacity: 0, animals: [] as any[] }
+    group.count += Number(f.ranch.count) || 0
+    group.capacity += Number(f.ranch.capacity) || 0
+    group.animals.push(...(f.ranch.animals || []))
+    groups.set(type, group)
+  }
+  return [...groups.values()]
+    .sort((a, b) => (PEN_ORDER[a.type] ?? 9) - (PEN_ORDER[b.type] ?? 9) || a.type - b.type)
+    .map(group => ({ ...group, animals: [...group.animals].sort((a, b) => (Number(a.slot) || 0) - (Number(b.slot) || 0) || Number(a.id) - Number(b.id)) }))
+})
 const capacity = computed(() => pens.value.reduce((sum, f) => sum + (Number(f.ranch.capacity) || 0), 0))
 const shelves = computed(() => pens.value.flatMap(f => f.ranch.shelves.filter((s: any) => s.canCollect).map((s: any) => ({ ...s, pen: f.name, key: `${f.id}:${s.slot}` }))))
 const hazards = computed(() => pens.value.reduce((sum, f) => sum + (f.ranch.hazards?.length || 0), 0))
 
 const canProduce = computed(() => animals.value.some(({ animal }) => animal.canProduce))
 const canHarvest = computed(() => animals.value.some(({ animal }) => animal.canHarvest) || shelves.value.length > 0)
+const buckets = computed(() => BUCKETS.map(bucket => ({
+  ...bucket,
+  seconds: state.value?.buckets?.find((b: any) => Number(b.id) === bucket.id)?.seconds ?? 0,
+})))
+const feedable = computed(() => animals.value.filter(({ animal }) => animal.canFeed))
+const normalCanUsed = computed(() => feedable.value.every(({ animal }) => animal.limitedCanUsed))
+
+// 只在快照仍有在途产物时补读，正常生产响应已经带回上架后的货架。
+const deliveryAt = computed(() => Math.max(0, ...animals.value.map(({ animal }) => Number(animal.deliveringUntilMs) || 0)))
+let lastDeliveryRead = 0
+watch([deliveryAt, disabled], ([deadline, blocked], _, onCleanup) => {
+  if (blocked || deadline <= lastDeliveryRead)
+    return
+  const timer = setTimeout(() => {
+    lastDeliveryRead = deadline
+    void refresh()
+  }, remainingSeconds(deadline) * 1000 + 350)
+  onCleanup(() => clearTimeout(timer))
+}, { immediate: true })
+
+const busyHint = computed(() => disabled.value ? (loading.value ? '正在读取牧场' : '请先完成当前牧场操作') : undefined)
+const cleanHint = computed(() => busyHint.value || (hazards.value ? undefined : '栏舍暂无可清理的污物'))
+const produceHint = computed(() => busyHint.value || (canProduce.value ? undefined : '当前没有可生产的动物'))
+const harvestHint = computed(() => busyHint.value || (canHarvest.value ? undefined : '当前没有可收获的动物或货架产物'))
+const feedHint = computed(() => {
+  if (busyHint.value)
+    return busyHint.value
+  if (!feedable.value.length)
+    return '当前没有可喂养的动物'
+  if (!buckets.value.some(bucket => Number(bucket.seconds) > 0 && (bucket.id === 7004 || !normalCanUsed.value))) {
+    return buckets.value.some(bucket => Number(bucket.seconds) > 0)
+      ? '普通罐头本轮已用，有机罐头不足'
+      : '罐头桶可用时长不足'
+  }
+  return undefined
+})
 
 const summary = computed(() => [
   { key: 'harvest', label: '可收获', icon: 'i-carbon-wheat text-amber-600 dark:text-amber-400', value: animals.value.filter(({ animal }) => animal.canHarvest).length },
   { key: 'produce', label: '可生产', icon: 'i-carbon-circle-dash text-green-600 dark:text-green-400', value: animals.value.filter(({ animal }) => animal.canProduce).length },
-  { key: 'blocked', label: '缺草', icon: 'i-carbon-warning-alt text-amber-600 dark:text-amber-400', value: animals.value.filter(({ animal }) => animal.grassBlocked).length },
+  // 数的是「因缺草卡住成长」的动物只数，不是牧草库存，和下方 stock 里的「牧草」不是同一个量。
+  { key: 'blocked', label: '因缺草受阻', unit: '只', icon: 'i-carbon-warning-alt text-amber-600 dark:text-amber-400', value: animals.value.filter(({ animal }) => animal.grassBlocked).length },
   { key: 'clean', label: '待清理', icon: 'i-carbon-clean text-violet-500 dark:text-violet-300', value: hazards.value },
-])
+].map(item => ({ unit: '', ...item })))
 const stock = computed(() => [
   { key: 'grass', label: '牧草', image: RANCH_IMAGE(7001), value: formatCount(state.value?.grass ?? 0) },
-  ...BUCKETS.map(bucket => ({ key: bucket.id, label: bucket.name, image: bucket.image, value: formatHours(state.value?.buckets?.find((b: any) => Number(b.id) === bucket.id)?.seconds ?? 0) })),
+  ...buckets.value.map(bucket => ({ key: bucket.id, label: bucket.name, image: bucket.image, value: formatHours(bucket.seconds) })),
 ])
 
 /** 倒计时已到但服务器尚未推进阶段时，显示阶段名而不是“0秒”。 */
 function animalRemaining(animal: any) {
-  const seconds = animal.nextAtMs ? remainingSeconds(animal.nextAtMs) : 0
+  const deadline = animal.deliveringUntilMs || animal.nextAtMs
+  const seconds = deadline ? remainingSeconds(deadline) : 0
   return seconds > 0 ? formatDuration(seconds) : ''
 }
 function target(animal: any) {
@@ -53,16 +112,21 @@ function target(animal: any) {
             <small class="ranch-head__count">{{ animals.length }} / {{ capacity }}</small>
           </h3>
           <div class="ranch-actions">
-            <NButton :disabled="disabled || !hazards" @click="request('clean')">
+            <NButton :disabled="disabled || !hazards" :title="cleanHint" @click="requestDirect('clean')">
               <span class="i-carbon-clean" />一键清理
             </NButton>
-            <NButton :disabled="disabled || !canProduce" @click="request('produce', { all: true })">
+            <RanchFeedMenu :buckets="buckets" :limited-can-used="normalCanUsed" :disabled="!!feedHint" @feed="(bucketType, produceAfterFeed) => requestDirect('feed', { all: true, bucketType, produceAfterFeed })">
+              <NButton aria-haspopup="menu" :disabled="!!feedHint" :title="feedHint">
+                <span class="i-carbon-time" aria-hidden="true" />一键喂养
+              </NButton>
+            </RanchFeedMenu>
+            <NButton :disabled="disabled || !canProduce" :title="produceHint" @click="requestDirect('produce', { all: true })">
               <span class="i-carbon-circle-dash" />一键生产
             </NButton>
-            <NButton type="primary" :disabled="disabled || !canHarvest" @click="request('harvest', { all: true })">
+            <NButton type="primary" :disabled="disabled || !canHarvest" :title="harvestHint" @click="requestDirect('harvest', { all: true })">
               <span class="i-carbon-flash" />一键收获
             </NButton>
-            <NButton circle quaternary title="刷新牧场" aria-label="刷新牧场" :loading="loading" @click="refresh">
+            <NButton circle quaternary title="刷新牧场" aria-label="刷新牧场" :loading="loading" :disabled="disabled" @click="refresh">
               <template #icon>
                 <span class="i-carbon-renew" />
               </template>
@@ -73,7 +137,7 @@ function target(animal: any) {
         <div class="ranch-summary">
           <div class="ranch-summary__states">
             <span v-for="item in summary" :key="item.key" class="ranch-state" :class="{ 'is-zero': !item.value }">
-              <span :class="item.icon" aria-hidden="true" />{{ item.label }}<b>{{ item.value }}</b>
+              <span :class="item.icon" aria-hidden="true" />{{ item.label }}<b>{{ item.value }}{{ item.unit }}</b>
             </span>
           </div>
           <div class="ranch-summary__stock">
@@ -81,6 +145,9 @@ function target(animal: any) {
               <img :src="item.image" alt="">{{ item.label }}<b>{{ item.value }}</b>
             </span>
           </div>
+          <p v-if="busyHint || (animals.length && feedHint)" class="w-full text-xs text-gray-500 dark:text-gray-400" role="status">
+            {{ busyHint || feedHint }}
+          </p>
         </div>
 
         <div class="p-4 sm:p-5">
@@ -92,21 +159,31 @@ function target(animal: any) {
               去牧场商店
             </BaseButton>
           </div>
-          <div v-else class="ranch-grid">
-            <RanchAnimalCard
-              v-for="{ animal, pen } in animals"
-              :key="`${animal.ranchId}:${animal.id}`"
-              :animal="animal"
-              :pen="pen"
-              :remaining="animalRemaining(animal)"
-              actionable
-              :disabled="disabled"
-              @produce="request('produce', target(animal))"
-              @harvest="request('harvest', target(animal))"
-              @feed="type => request('feed', { ...target(animal), bucketType: type })"
-              @release="request('release', target(animal))"
-            />
-          </div>
+          <template v-else>
+            <section v-for="group in penGroups" :key="group.type" class="ranch-pen" :aria-label="`${group.name}的动物`">
+              <header class="ranch-pen__head">
+                <i aria-hidden="true" /><h4>{{ group.name }}</h4><span>{{ group.count }} / {{ group.capacity }}</span>
+              </header>
+              <div v-if="group.animals.length" class="ranch-grid">
+                <RanchAnimalCard
+                  v-for="animal in group.animals"
+                  :key="`${animal.ranchId}:${animal.id}`"
+                  :animal="animal"
+                  :remaining="animalRemaining(animal)"
+                  :buckets="buckets"
+                  actionable
+                  :disabled="disabled"
+                  @produce="requestDirect('produce', target(animal))"
+                  @harvest="requestDirect('harvest', target(animal))"
+                  @feed="(bucketType, produceAfterFeed) => requestDirect('feed', { ...target(animal), bucketType, produceAfterFeed })"
+                  @release="request('release', target(animal))"
+                />
+              </div>
+              <p v-else class="ranch-pen__empty">
+                {{ group.name }}里还没有动物，可在背包放养或到牧场商店购买幼崽。
+              </p>
+            </section>
+          </template>
 
           <section v-if="shelves.length" class="ranch-shelves" aria-label="待收产物">
             <h4><span class="i-carbon-box" aria-hidden="true" />待收产物</h4>
@@ -218,6 +295,48 @@ function target(animal: any) {
   font-weight: var(--fw-650);
 }
 
+.ranch-pen + .ranch-pen {
+  margin-top: 18px;
+}
+
+/* 分组标题：与图鉴分组同一种色标 + 名称 + 计数。 */
+.ranch-pen__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.ranch-pen__head > i {
+  width: 3px;
+  height: 14px;
+  flex: none;
+  border-radius: 2px;
+  background: var(--ui-primary);
+}
+
+.ranch-pen__head h4 {
+  margin: 0;
+  color: var(--ui-ink);
+  font-size: 14px;
+  font-weight: var(--fw-650);
+}
+
+.ranch-pen__head span {
+  color: var(--ui-subtle);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.ranch-pen__empty {
+  margin: 0;
+  padding: 14px;
+  border: 1px dashed var(--ui-border-strong);
+  border-radius: 12px;
+  color: var(--ui-subtle);
+  font-size: 12px;
+}
+
 .ranch-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
@@ -303,7 +422,13 @@ function target(animal: any) {
   .ranch-actions {
     display: grid;
     width: 100%;
-    grid-template-columns: repeat(3, minmax(0, 1fr)) auto;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) auto;
+  }
+
+  .ranch-actions :deep(.n-button--circle) {
+    grid-row: 1 / span 2;
+    grid-column: 3;
+    align-self: center;
   }
 
   .ranch-actions :deep(.n-button:not(.n-button--circle)) {

@@ -17,6 +17,7 @@ const { performDailyMonthCardGift, getMonthCardDailyState } = require('../servic
 const { performDailyVipGift, getVipDailyState } = require('../services/qqvip');
 const { runExclusiveAutomationTask } = require('../services/automation-lock');
 const ranchAutomation = require('../services/ranch/automation');
+const { isRanchMarketEnabled, RANCH_MARKET_SWITCH_BY_CURRENCY } = require('../config/ranch-automation');
 const { createScheduler, getSchedulerRegistrySnapshot } = require('../services/scheduler');
 const { checkDailyShareStatus, getShareDailyState } = require('../services/share');
 const { refreshActivityWindows } = require('../services/activity-windows');
@@ -131,20 +132,35 @@ let ranchRoutineQueued = false;
 let initialFarmCheckDone = false;
 let initialFriendCheckDone = false;
 let ranchDeferredUntil = 0;
-let onRanchMarketStockReady: (() => void) | null = null;
 
 function ranchNextRunAt(): number {
     // 首轮农场和好友巡查先完成；长好友轮次的访问间隔也不插入场景切换。
     if (!unifiedSchedulerRunning || ranchRoutineQueued || farmTaskRunning || friendTaskRunning
         || !initialFarmCheckDone || !initialFriendCheckDone) return Infinity;
     const state = ranchAutomation.getRoutineState();
-    return state.doneToday ? Infinity : Math.max(state.nextCheckAt, ranchDeferredUntil);
+    return Math.max(state.nextCheckAt, ranchDeferredUntil);
 }
 
-function wakeRanchMarketExchange(): void {
-    if (!loginReady || !getAutomation().ranch_market_organic) return;
-    ranchAutomation.resetMarketSchedule();
+function wakeRanchMarketExchange({ id }: { id: 7002 | 1008 }): void {
+    if (!loginReady) return;
+    const auto = getAutomation();
+    if ((auto[RANCH_MARKET_SWITCH_BY_CURRENCY[id]] ?? auto.ranch_market_organic) !== true) return;
+    ranchAutomation.requestMarketCheck();
     scheduleUnifiedNextTick();
+}
+
+function onRanchMarketVisitChanged(rotation: any): void {
+    if (!loginReady || !isRanchMarketEnabled(getAutomation())) return;
+    if (ranchAutomation.noteMarketVisit(rotation)) scheduleUnifiedNextTick();
+}
+
+function onRanchBookReward(kind: 'normal' | 'giant', available: boolean): void {
+    if (ranchAutomation.noteBookReward(kind, available) && loginReady && getAutomation().ranch_illustrated) scheduleUnifiedNextTick();
+}
+
+function onRanchFacilitiesChanged(facilities: any[]): void {
+    if (!loginReady || !getAutomation().ranch_activate_shed) return;
+    if (ranchAutomation.noteRanchFacilities(facilities)) scheduleUnifiedNextTick();
 }
 
 function runRanchRoutine(detached = false): Promise<void> {
@@ -546,7 +562,9 @@ function applyRuntimeConfig(snapshot: any, syncNow: boolean = false): number {
     const appliedSnapshot = applyConfigSnapshot(snapshot || {}, { persist: false, accountId });
     configureEmailClaim({ hour: appliedSnapshot.emailClaimHour, accountId });
     const nextRanchAuto = getAutomation();
-    if (Object.keys(nextRanchAuto).some(key => key.startsWith('ranch_') && nextRanchAuto[key] !== prevAuto[key])) ranchAutomation.resetSchedule();
+    const ranchChanged = Object.keys(nextRanchAuto).some(key => key.startsWith('ranch_')
+        && JSON.stringify(nextRanchAuto[key]) !== JSON.stringify(prevAuto[key]));
+    if (ranchChanged) ranchAutomation.resetSchedule();
     if (rev > appliedConfigRevision) appliedConfigRevision = rev;
 
     // 优先使用本次下发的间隔，避免 worker 内部 store 漂移导致回退默认值
@@ -680,12 +698,17 @@ async function startBot(config: any): Promise<void> {
     };
     networkEvents.on('disconnected', onDisconnected);
     networkEvents.on('kickout', onKickout);
+    networkEvents.off('ranchBookReward', onRanchBookReward);
+    networkEvents.on('ranchBookReward', onRanchBookReward);
+    networkEvents.off('ranchFacilitiesChanged', onRanchFacilitiesChanged);
+    networkEvents.on('ranchFacilitiesChanged', onRanchFacilitiesChanged);
 
     const generation = runtimeGeneration;
     const canContinueLogin = (): boolean => isRunning && !shutdownStarted && generation === runtimeGeneration;
     const onLoginSuccess = async (): Promise<void> => {
         if (!canContinueLogin() || loginReady) return;
         loginReady = true;
+        ranchAutomation.resetSchedule();
         if (onSellGain) {
             networkEvents.off('sell', onSellGain);
         }
@@ -713,9 +736,10 @@ async function startBot(config: any): Promise<void> {
         };
         networkEvents.on('farmHarvested', onFarmHarvested);
 
-        if (onRanchMarketStockReady) networkEvents.off('ranchMarketStockReady', onRanchMarketStockReady);
-        onRanchMarketStockReady = wakeRanchMarketExchange;
-        networkEvents.on('ranchMarketStockReady', onRanchMarketStockReady);
+        networkEvents.off('ranchMarketStockReady', wakeRanchMarketExchange);
+        networkEvents.on('ranchMarketStockReady', wakeRanchMarketExchange);
+        networkEvents.off('ranchMarketVisitChanged', onRanchMarketVisitChanged);
+        networkEvents.on('ranchMarketVisitChanged', onRanchMarketVisitChanged);
 
         if (onDogSkillGiftPending) {
             networkEvents.off('dogSkillGiftPending', onDogSkillGiftPending);
@@ -798,10 +822,10 @@ function detachRuntimeListeners(): void {
         networkEvents.off('farmHarvested', onFarmHarvested);
         onFarmHarvested = null;
     }
-    if (onRanchMarketStockReady) {
-        networkEvents.off('ranchMarketStockReady', onRanchMarketStockReady);
-        onRanchMarketStockReady = null;
-    }
+    networkEvents.off('ranchMarketStockReady', wakeRanchMarketExchange);
+    networkEvents.off('ranchMarketVisitChanged', onRanchMarketVisitChanged);
+    networkEvents.off('ranchBookReward', onRanchBookReward);
+    networkEvents.off('ranchFacilitiesChanged', onRanchFacilitiesChanged);
     if (onDogSkillGiftPending) {
         networkEvents.off('dogSkillGiftPending', onDogSkillGiftPending);
         onDogSkillGiftPending = null;
@@ -886,7 +910,11 @@ async function handleApiCall(msg: any): Promise<void> {
                 if (!loginReady || shutdownStarted) throw new Error('账号未连接');
                 switch (method) {
                 case 'getRanchState':
-                    result = await require('../services/ranch').getRanchState(args[0], args[1], args[2]);
+                    // 打包版的 fork 使用 JSON IPC，会把缺省的好友 GID 编码成 null。
+                    result = await require('../services/ranch').getRanchState(args[0], args[1], args[2] ?? undefined);
+                    break;
+                case 'clearRanchIllustratedNew':
+                    result = await require('../services/ranch/book').clearGiantBookNew();
                     break;
                 case 'prepareRanchAction':
                     result = await require('../services/ranch').prepareRanchAction(args[0], args[1]);
@@ -908,6 +936,9 @@ async function handleApiCall(msg: any): Promise<void> {
                     break;
                 case 'claimIllustratedRewards':
                     result = await require('../services/illustrated').claimIllustratedRewards(args[0]);
+                    break;
+                case 'clearIllustratedNew':
+                    result = await require('../services/illustrated').clearIllustratedNew(args[0]);
                     break;
                 case 'getSolarCalendar':
                     result = await require('../services/solar-calendar').getSolarCalendar();

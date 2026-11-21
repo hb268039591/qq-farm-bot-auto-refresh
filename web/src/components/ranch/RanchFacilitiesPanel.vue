@@ -2,7 +2,7 @@
 import { NButton } from 'naive-ui/es/button'
 import { storeToRefs } from 'pinia'
 import { computed, ref } from 'vue'
-import { formatCount, formatDuration, RANCH_IMAGE, useRanchActions, useRanchClock, useRanchLoader } from '@/components/ranch/ranch-shared'
+import { formatCount, formatDuration, RANCH_IMAGE, sortFacilities, useRanchActions, useRanchClock, useRanchLoader } from '@/components/ranch/ranch-shared'
 import RanchAmountDialog from '@/components/ranch/RanchAmountDialog.vue'
 import RanchGate from '@/components/ranch/RanchGate.vue'
 import { useRanchStore } from '@/stores/ranch'
@@ -12,7 +12,7 @@ const { refresh } = useRanchLoader('facilities')
 const { disabled, request } = useRanchActions()
 const { serverNow, remainingSeconds } = useRanchClock()
 
-const facilities = computed<any[]>(() => state.value?.facilities || [])
+const facilities = computed<any[]>(() => sortFacilities(state.value?.facilities || []))
 const grass = computed(() => Number(state.value?.grass) || 0)
 const grassTarget = ref<any>(null)
 
@@ -75,7 +75,7 @@ function submitGrass(count: number) {
           </div>
 
           <div v-if="!f.active && f.moduleType === 7" class="facility__upgrade">
-            牧场 21 级解锁
+            {{ f.canActivate ? '可解锁' : Number(state?.level) < 21 ? '牧场 21 级解锁' : '等待牧场开放' }}
           </div>
           <div v-else-if="f.active && f.upgradeState" class="facility__upgrade">
             <span class="i-carbon-time" aria-hidden="true" />
@@ -94,7 +94,12 @@ function submitGrass(count: number) {
             已满级
           </p>
 
-          <footer v-if="f.active" class="facility__foot">
+          <footer v-if="f.canActivate" class="facility__foot">
+            <NButton size="small" type="primary" :disabled="disabled" @click="request('activateShed', { facilityId: f.id })">
+              解锁
+            </NButton>
+          </footer>
+          <footer v-else-if="f.active" class="facility__foot">
             <NButton v-if="f.feed" size="small" secondary :disabled="disabled || f.feed.count >= f.capacity || grass < 1" @click="grassTarget = f">
               <span class="i-carbon-add mr-0.5" aria-hidden="true" />补充牧草
             </NButton>

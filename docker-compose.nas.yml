@@ -1,0 +1,5 @@
+# Use with the precompiled ZIP only. GitHub source clones build core/Dockerfile.
+services:
+  qq-farm-bot:
+    build:
+      dockerfile: core/Dockerfile.nas
