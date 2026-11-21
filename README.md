@@ -1,6 +1,6 @@
 # QQ Farm Bot · 微信自动刷新合并版
-整合微信自动刷新和掉线重登机制，其他未修改个人比较习惯掉线重登之前的QQ Farm Bot是支持的但是大佬没有更新了我就合并了功能方便自己使用
-本次更新以 [liyangpengs/qq-farm-bot](https://github.com/liyangpengs/qq-farm-bot) 的 `a1d0151f3ae58a07e33d21ca992680ea13ff4c42`（上游 2026-11-21 16:39:27，合并 2026-11-21）为基底，保留微信凭证续期、自动刷新 Code 和掉线重登。按用户要求同步到本仓库。
+掉线重登，和自动刷新之前有老大在维护的但是删库了整合了一下方便自己使用已合并更新农场，牧场
+本次更新以 [liyangpengs/qq-farm-bot](https://github.com/liyangpengs/qq-farm-bot) 的 `a1d0151f3ae58a07e33d21ca992680ea13ff4c42`（上游 2026-11-21 16:39:27，合并 2026-11-21）为基底，保留微信凭证续期、自动刷新 Code 和掉线重登。
 
 - GitHub 默认使用 `core/Dockerfile` 从源码构建，下载仓库后可直接 `docker compose build`；本地 ZIP 默认使用 `core/Dockerfile.nas` 和已编译前后端，减少 NAS 构建耗时。
 - 微信账号运行时每 30 分钟续期凭证，默认每 60 分钟换码；掉线后等待 1 分钟尝试重登。
