@@ -3,13 +3,15 @@ const { fork } = require('node:child_process');
 const path = require('node:path');
 const { Worker } = require('node:worker_threads');
 const store = require('../models/store');
-const { updateRuntimeConfig, getRuntimeConfig, getDefaultSystemConfig } = require('../config/config');
+const { updateRuntimeConfig } = require('../config/config');
 const { sendPushooMessage } = require('../services/push');
 const { createAutoCodeRefreshService } = require('./auto-code-refresh');
 const { createDataProvider } = require('./data-provider');
 const { createReloginReminderService } = require('./relogin-reminder');
 const { createRuntimeState } = require('./runtime-state');
 const { createWorkerManager } = require('./worker-manager');
+
+const { listHostedSessions, findAccountSession } = require('../session/ipc');
 
 const OPERATION_KEYS = ['harvest', 'farming', 'fertilize', 'plant', 'steal', 'helpFarming', 'taskClaim', 'sell', 'upgrade'];
 
@@ -70,11 +72,12 @@ function createRuntimeEngine(options: RuntimeEngineOptions = {}) {
     const autoCodeRefresh = createAutoCodeRefreshService({
         store, log, addAccountLog,
         resolveWorkerControls: () => ({ startWorker, stopWorker, restartWorker,
+            startAccountWorker, resumeAccountWorker, stopAccountWorker,
             hasWorker: (id: string) => !!workers[id],
             isRunning: (id: string) => !!workers[id] && !workers[id].stopping && !workers[id].terminalHandled }),
     });
 
-    const { startWorker, stopWorker, restartWorker, callWorkerApi } = createWorkerManager({
+    const { startWorker, stopWorker, restartWorker, callWorkerApi, startAccountWorker, resumeAccountWorker, stopAccountWorker, detachAllWorkers: detachManagedWorkers } = createWorkerManager({
         fork,
         WorkerThread: Worker,
         runtimeMode,
@@ -118,7 +121,7 @@ function createRuntimeEngine(options: RuntimeEngineOptions = {}) {
         buildConfigSnapshotForAccount,
         broadcastGameConfigReload,
         startWorker: autoCodeRefresh.startAccount,
-        stopWorker: (id: string) => { autoCodeRefresh.stopAccount(id); stopWorker(id); },
+        stopWorker: async (account: any) => { autoCodeRefresh.stopAccount(String(account.id)); await stopAccountWorker(account); },
         restartWorker: autoCodeRefresh.restartAccount,
         rescheduleAutoCodeRefresh: autoCodeRefresh.rescheduleAccount,
         refreshAccountCode: autoCodeRefresh.refreshAccountCode,
@@ -178,7 +181,17 @@ function createRuntimeEngine(options: RuntimeEngineOptions = {}) {
             startAdminServer(dataProvider);
         }
 
-        if (shouldAutoStartAccounts) {
+        if (processRef.env.FARM_SESSION_SOCKET) {
+            const sessions = await listHostedSessions();
+            for (const account of store.getAccounts().accounts) {
+                const session = findAccountSession(sessions, account);
+                if (session) {
+                    if (startWorker(account, session.sessionId)) autoCodeRefresh.adoptAccount(account);
+                } else if (shouldAutoStartAccounts) {
+                    await autoCodeRefresh.startAccount(account);
+                }
+            }
+        } else if (shouldAutoStartAccounts) {
             await startAllAccounts();
         }
     }
@@ -190,6 +203,11 @@ function createRuntimeEngine(options: RuntimeEngineOptions = {}) {
         }
     }
 
+    async function detachAllWorkers(): Promise<void> {
+        autoCodeRefresh.stopAll();
+        await detachManagedWorkers();
+    }
+
     return {
         store,
         runtimeEvents,
@@ -198,6 +216,7 @@ function createRuntimeEngine(options: RuntimeEngineOptions = {}) {
         start,
         startAllAccounts,
         stopAllAccounts,
+        detachAllWorkers,
         broadcastConfigToWorkers,
         broadcastGameConfigReload,
         startWorker,

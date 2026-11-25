@@ -9,3 +9,8 @@ web/src
 web/public
 *.zip
 *.log
+/.env
+/.env.*
+/runtime/
+/releases/
+.turbo/

@@ -42,6 +42,7 @@ function fixture(options = {}) {
             startWorker: account => { running = true; starts.push({ ...account }); return true; },
             stopWorker: () => { running = false; },
             restartWorker: (account, shouldRestart) => { if (shouldRestart()) { running = true; restarts.push({ ...account }); } },
+            ...options.controls,
         }),
     });
     return { service, tasks, cfg, events, starts, restarts, writes, store, wxLogin,
@@ -237,4 +238,53 @@ test('deleting during renewal cannot recreate the account', async () => {
     assert.equal(f.account, undefined);
     assert.equal(f.writes.length, 0);
     assert.equal(f.restarts.length, 0);
+});
+
+test('hosted session resume does not exchange or replay a game code and schedules credential keepalive', async () => {
+    const attached = [];
+    const f = fixture({ controls: { resumeAccountWorker: async (account, guard) => {
+        if (!guard()) return false;
+        attached.push(account.id);
+        return true;
+    } } });
+    assert.equal(await f.service.startAccount(f.account), true);
+    assert.deepEqual(attached, ['1']);
+    assert.equal(f.starts.length, 0);
+    assert.equal(f.events.some(event => event[0] === 'renew' || event[0] === 'code'), false);
+    assert.equal(f.tasks.has('keepalive_1'), true);
+});
+
+test('an explicit rescan uses its newly issued code instead of adopting the previous hosted session', async () => {
+    const f = fixture({ controls: { resumeAccountWorker: async () => assert.fail('explicit scan must not adopt old session') } });
+    assert.equal(await f.service.startAccount(f.account, true), true);
+    assert.equal(f.starts[0].code, 'scan-code');
+});
+
+test('adopted hosted account resumes rolling keepalive and can recover a later disconnect', async () => {
+    const f = fixture();
+    f.service.adoptAccount(f.account);
+    await f.run('keepalive_1');
+    assert.equal(f.account.refreshtoken, 'refresh-1');
+    f.service.scheduleRelogin('1', 'disconnect:session-host');
+    assert.equal(await f.run('relogin_1'), true);
+    assert.equal(f.restarts.length, 1);
+});
+
+test('manual stop cancels a restart while it waits for the hosted connection to close', async () => {
+    let finish;
+    const f = fixture({ controls: { stopAccountWorker: () => new Promise(resolve => { finish = resolve; }) } });
+    const pending = f.service.restartAccount(f.account);
+    await new Promise(resolve => setImmediate(resolve));
+    f.service.stopAccount('1');
+    finish();
+    assert.equal(await pending, false);
+    assert.equal(f.restarts.length, 0);
+    assert.equal(f.events.some(event => event[0] === 'renew'), false);
+});
+
+test('hosted restart errors are awaited and reported rather than losing the rejection', async () => {
+    const f = fixture({ controls: { restartWorker: async () => { throw new Error('session host unavailable'); } } });
+    await f.service.startAccount(f.account, true);
+    assert.equal(await f.service.refreshAccountCode('1'), false);
+    assert.ok(f.events.some(event => event[1] === 'auto_code_refresh_failed'));
 });

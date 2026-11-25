@@ -20,6 +20,8 @@ const { mountFarmRoutes } = require('./farm-routes');
 const { mountFriendRoutes } = require('./friend-routes');
 const { mountActivityCenterRoutes } = require('./activity-center-routes');
 const { mountCommerceRoutes } = require('./commerce-routes');
+const { mountSystemUpdateRoutes } = require('./system-update-routes');
+const { readWebBuildInfo } = require('./web-version');
 const { mountWxLoginRoutes } = require('./wx-login-routes');
 const { mountQqLoginRoutes } = require('./qq-login-routes');
 const {
@@ -63,12 +65,68 @@ function startAdminServer(dataProvider: any): void {
         next();
     });
 
-    const webDist = path.join(__dirname, '../../../../web/dist');
-    if (fs.existsSync(webDist)) {
-        app.use(express.static(webDist));
-    } else {
+    const { getWebRootInfo } = require('../../config/runtime-paths');
+    const resolveActiveWebDirs = (): string[] => {
+        const { webRoot, fallbackRoots } = getWebRootInfo();
+        return [webRoot, ...fallbackRoots];
+    };
+    const staticMiddlewareCache = new Map<string, any>();
+    const setNoStoreHeaders = (res: any) => {
+        res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+        res.setHeader('Pragma', 'no-cache');
+    };
+    const serveDynamicWeb = (req: any, res: any, next: any) => {
+        if (req.path.startsWith('/api') || req.path.startsWith('/game-config') || req.path.startsWith('/socket.io')) return next();
+        const dirs = resolveActiveWebDirs();
+        for (const cached of staticMiddlewareCache.keys()) {
+            if (!dirs.includes(cached)) staticMiddlewareCache.delete(cached);
+        }
+        let idx = 0;
+        const step = (err?: any) => {
+            if (err) return next(err);
+            if (idx >= dirs.length) return next();
+            const dir = dirs[idx++];
+            let mw = staticMiddlewareCache.get(dir);
+            if (!mw) {
+                mw = express.static(dir, {
+                    setHeaders: (staticRes: any, filePath: string) => {
+                        const base = path.basename(filePath).toLowerCase();
+                        if (base === 'index.html' || base === 'version.json') {
+                            setNoStoreHeaders(staticRes);
+                        }
+                    },
+                });
+                staticMiddlewareCache.set(dir, mw);
+            }
+            mw(req, res, step);
+        };
+        step();
+    };
+    const sendDynamicIndex = (res: any, fallbackStatus: number) => {
+        for (const dir of resolveActiveWebDirs()) {
+            const indexPath = path.join(dir, 'index.html');
+            if (fs.existsSync(indexPath)) {
+                setNoStoreHeaders(res);
+                return res.sendFile(indexPath);
+            }
+        }
+        if (fallbackStatus !== 200) res.status(fallbackStatus);
+        res.send('web build not found. Please build the web project.');
+    };
+    app.get('/version.json', (_req: any, res: any) => {
+        setNoStoreHeaders(res);
+        const { webRoot } = getWebRootInfo();
+        const info = readWebBuildInfo(webRoot);
+        if (info) {
+            return res.json(info);
+        }
+        return res.json({ buildId: '', appVersion: '', builtAt: 0 });
+    });
+    const [webDist] = resolveActiveWebDirs();
+    app.use(serveDynamicWeb);
+    if (!fs.existsSync(webDist)) {
         adminLogger.warn('web build not found', { webDist });
-        app.get('/', (_req: any, res: any) => res.send('web build not found. Please build the web project.'));
+        app.get('/', (_req: any, res: any) => sendDynamicIndex(res, 200));
     }
     app.use('/game-config', express.static(getResourcePath('gameConfig')));
 
@@ -81,17 +139,14 @@ function startAdminServer(dataProvider: any): void {
     mountAccountRoutes(app, ctx);
     mountActivityCenterRoutes(app, ctx);
     mountCommerceRoutes(app, ctx);
+    mountSystemUpdateRoutes(app, ctx);
 
     // SPA fallback
     app.get('*', (req: any, res: any) => {
         if (req.path.startsWith('/api') || req.path.startsWith('/game-config')) {
              return res.status(404).json({ ok: false, error: 'Not Found' });
         }
-        if (fs.existsSync(webDist)) {
-            res.sendFile(path.join(webDist, 'index.html'));
-        } else {
-            res.status(404).send('web build not found. Please build the web project.');
-        }
+        return sendDynamicIndex(res, 404);
     });
 
     const port: number = CONFIG.adminPort || 3007;
@@ -102,6 +157,15 @@ function startAdminServer(dataProvider: any): void {
     // Setup Socket.IO
     setupSocketIO(ctx);
 
+}
+
+async function stopAdminServer(): Promise<void> {
+    const server = ctx?.server;
+    if (!server) return;
+    ctx?.io?.disconnectSockets(true);
+    const closed = new Promise<void>(resolve => server.close(() => resolve()));
+    server.closeAllConnections?.();
+    await closed;
 }
 
 function emitRealtimeStatus(accountId: string, status: any): void {
@@ -120,7 +184,7 @@ function emitRealtimeAccountLog(entry: any): void {
 }
 
 module.exports = {
-    startAdminServer,
+    startAdminServer, stopAdminServer,
     emitRealtimeStatus,
     emitRealtimeLog,
     emitRealtimeAccountLog,

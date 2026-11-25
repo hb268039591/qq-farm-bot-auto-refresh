@@ -1,25 +1,33 @@
 services:
   qq-farm-bot:
-    build:
+    build: &app-build
       context: .
       dockerfile: core/Dockerfile
       args:
         NODE_IMAGE: ${NODE_IMAGE:-node:20.19.6-alpine3.21}
         PNPM_VERSION: ${PNPM_VERSION:-10.30.2}
         NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmjs.org/}
-    image: qq-farm-bot:merged-20261121
+    image: qq-farm-bot:merged-20261125
+    pull_policy: build
     container_name: qq-farm-bot-refresh
     restart: unless-stopped
     ports:
       - "${PORT:-3007}:3007"
+    depends_on:
+      session-host:
+        condition: service_healthy
     volumes:
       - "${DATA_DIR:-../data}:/app/core/data"
+      - qq-farm-runtime:/app/runtime
     environment:
       - TZ=${TZ:-Asia/Shanghai}
       - NODE_ENV=production
       - ADMIN_PORT=3007
       - FARM_DATA_DIR=/app/core/data
       - FARM_AUTO_START=${FARM_AUTO_START:-1}
+      - FARM_RUNTIME_MODE=fork
+      - FARM_RUNTIME_DIR=/app/runtime
+      - FARM_SESSION_SOCKET=/app/runtime/session-host.sock
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:3007/api/game-version"]
       interval: 30s
@@ -31,3 +39,25 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+
+  session-host:
+    image: qq-farm-bot:merged-20261125
+    pull_policy: build
+    build: *app-build
+    command: ["node", "dist/session/host.js"]
+    restart: unless-stopped
+    volumes:
+      - qq-farm-runtime:/app/runtime
+    environment:
+      - TZ=${TZ:-Asia/Shanghai}
+      - FARM_HOST_DATA_DIR=/app/runtime/session-host-data
+      - FARM_RUNTIME_DIR=/app/runtime
+      - FARM_SESSION_SOCKET=/app/runtime/session-host.sock
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('./dist/session/ipc').SessionClient.open('control').then(c => c.close()).catch(() => process.exit(1))"]
+      interval: 5s
+      timeout: 4s
+      retries: 5
+
+volumes:
+  qq-farm-runtime:

@@ -18,7 +18,7 @@ interface DataProviderOptions {
     buildConfigSnapshotForAccount: (accountId: string) => any;
     broadcastGameConfigReload?: () => void;
     startWorker: (account: any, useExistingCode?: boolean) => boolean | Promise<boolean>;
-    stopWorker: (accountId: string) => void;
+    stopWorker: (account: any) => void | Promise<void>;
     restartWorker: (account: any, useExistingCode?: boolean) => any;
     rescheduleAutoCodeRefresh?: (id: string) => void;
     refreshAccountCode?: (id: string, reason?: string) => Promise<boolean>;
@@ -126,8 +126,8 @@ function createDataProvider(options: DataProviderOptions) {
         clearIllustratedNew: (accountRef: string, fruitIds: number[]) => callWorkerApi(resolveAccountRefId(accountRef), 'clearIllustratedNew', fruitIds),
         getSolarCalendar: (accountRef: string) => callWorkerApi(resolveAccountRefId(accountRef), 'getSolarCalendar'),
         operateSolarCalendar: (accountRef: string, action: string, input: any) => callWorkerApi(resolveAccountRefId(accountRef), 'operateSolarCalendar', action, input),
-        getFriends: (accountRef: string, forceSync = false) => callWorkerApi(resolveAccountRefId(accountRef), 'getFriends', forceSync, true),
-        getFriendsCache: (accountRef: string) => callWorkerApi(resolveAccountRefId(accountRef), 'getFriendsCache'),
+        getFriends: (accountRef: string, forceSync = false, withStatus = false) => callWorkerApi(resolveAccountRefId(accountRef), 'getFriends', forceSync, true, withStatus),
+        getFriendsCache: (accountRef: string, withStatus = false) => callWorkerApi(resolveAccountRefId(accountRef), 'getFriendsCache', withStatus),
         clearFriendsCache: (accountRef: string) => callWorkerApi(resolveAccountRefId(accountRef), 'clearFriendsCache'),
         getInteractRecords: (accountRef: string) => callWorkerApi(resolveAccountRefId(accountRef), 'getInteractRecords'),
         getFriendLands: (accountRef: string, gid: number) => callWorkerApi(resolveAccountRefId(accountRef), 'getFriendLands', gid, true),
@@ -441,11 +441,11 @@ function createDataProvider(options: DataProviderOptions) {
             return await startWorker(acc, useExistingCode);
         },
 
-        stopAccount: (accountRef: string) => {
+        stopAccount: async (accountRef: string) => {
             const accountId = resolveAccountRefId(accountRef);
             const acc = findAccountByAnyRef(accountId || accountRef);
             if (!acc) return false;
-            if (accountId) stopWorker(accountId);
+            if (accountId) await stopWorker(acc);
             return true;
         },
 

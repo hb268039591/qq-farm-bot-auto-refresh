@@ -90,12 +90,12 @@ function createAutoCodeRefreshService(deps: any) {
         return find(id);
     }
 
-    function launch(account: any, generation: object): boolean {
+    async function launch(account: any, generation: object): Promise<boolean> {
         const id = String(account.id);
         if (!valid(id, generation)) return false;
         const controls = resolveWorkerControls();
         if (controls.hasWorker?.(id)) {
-            controls.restartWorker(account, () => valid(id, generation));
+            await controls.restartWorker(account, () => valid(id, generation));
             return true;
         }
         return controls.startWorker(account);
@@ -151,7 +151,7 @@ function createAutoCodeRefreshService(deps: any) {
                 if (!valid(id, generation) || (reason !== 'manual' && !config(id).enabled)) return false;
                 scheduler.clear(`relogin_${id}`);
                 pendingRelogins.delete(id);
-                controls.restartWorker(account, () => valid(id, generation));
+                await controls.restartWorker(account, () => valid(id, generation));
                 recovery(id).failures = 0;
                 report(id, 'auto_code_refresh', '自动刷新 Code 成功，正在重新登录', { reason });
                 return true;
@@ -191,10 +191,14 @@ function createAutoCodeRefreshService(deps: any) {
         active.set(id, generation);
         recoveries.delete(id);
         schedule(id);
-        if (!supported(account) || useExistingCode) return launch(account, generation);
         return locked(id, async () => {
             try {
-                const fresh = await issue(id, generation);
+                const resume = resolveWorkerControls().resumeAccountWorker;
+                if (resume && !useExistingCode) {
+                    const resumed = await resume(account, () => valid(id, generation));
+                    if (resumed !== null) return resumed;
+                }
+                const fresh = supported(account) && !useExistingCode ? await issue(id, generation) : account;
                 if (!valid(id, generation)) return false;
                 return launch(fresh, generation);
             } catch (error: any) {
@@ -209,16 +213,19 @@ function createAutoCodeRefreshService(deps: any) {
     async function restartAccount(account: any, useExistingCode = false): Promise<boolean> {
         const id = String(account.id);
         stopAccount(id);
-        resolveWorkerControls().stopWorker(id);
         const generation = {};
         active.set(id, generation);
         recoveries.delete(id);
         schedule(id);
         return locked(id, async () => {
             try {
+                const controls = resolveWorkerControls();
+                if (controls.stopAccountWorker) await controls.stopAccountWorker(account);
+                else controls.stopWorker(id);
+                if (!valid(id, generation)) return false;
                 const fresh = supported(account) && !useExistingCode ? await issue(id, generation) : find(id);
                 if (!fresh || !valid(id, generation)) return false;
-                resolveWorkerControls().restartWorker(fresh, () => valid(id, generation));
+                await controls.restartWorker(fresh, () => valid(id, generation));
                 return true;
             } catch (error: any) {
                 if (valid(id, generation)) {
@@ -247,6 +254,11 @@ function createAutoCodeRefreshService(deps: any) {
         }
     }
     function stopAll(): void { active.clear(); pendingRelogins.clear(); scheduler.clearAll(); }
-    return { startAccount, restartAccount, stopAccount, rescheduleAccount, scheduleRelogin, refreshAccountCode, stopAll };
+    function adoptAccount(account: any): void {
+        const id = String(account.id);
+        active.set(id, {});
+        schedule(id);
+    }
+    return { startAccount, restartAccount, stopAccount, rescheduleAccount, scheduleRelogin, refreshAccountCode, stopAll, adoptAccount };
 }
 module.exports = { createAutoCodeRefreshService };

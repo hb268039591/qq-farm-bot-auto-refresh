@@ -3,3 +3,6 @@ services:
   qq-farm-bot:
     build:
       dockerfile: core/Dockerfile.nas
+  session-host:
+    build:
+      dockerfile: core/Dockerfile.nas

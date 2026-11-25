@@ -24,3 +24,10 @@ output/
 protocol-captures/
 docs/performance-analysis/
 **/tests/
+
+/runtime/
+/releases/
+/packages/*/dist/
+.turbo/
+/.env
+/.env.*

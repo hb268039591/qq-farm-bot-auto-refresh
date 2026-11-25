@@ -4,8 +4,12 @@
 import type { AdminContext } from './context';
 export {};
 
+const fs = require('node:fs');
+const path = require('node:path');
 const { Server } = require('socket.io');
 const SocketIOServer = Server;
+const { getRuntimePaths } = require('../../config/runtime-paths');
+const { getActiveWebBuildId } = require('./web-version');
 
 const {
     resolveAccId,
@@ -34,7 +38,8 @@ function applySocketSubscription(ctx: AdminContext, socket: any, accountRef: str
             socket.emit('status:update', { accountId: targetId, status: currentStatus });
         }
         if (ctx.provider && typeof ctx.provider.getLogs === 'function') {
-            let currentLogs: any[] = ctx.provider.getLogs(targetId, { limit: 100 });
+            // 冗余缓存：逐块务农日志密集，前端要先聚合再截断，快照给足原始行
+            let currentLogs: any[] = ctx.provider.getLogs(targetId, { limit: 500 });
             if (!Array.isArray(currentLogs)) currentLogs = [];
 
             socket.emit('logs:snapshot', {
@@ -80,14 +85,60 @@ function setupSocketIO(ctx: AdminContext): void {
         return next();
     });
 
+    let lastNotifiedBuildId = getActiveWebBuildId();
+    let webWatchTimer: ReturnType<typeof setTimeout> | null = null;
+    let webWatcher: any = null;
+
+    const notifyIfWebChanged = () => {
+        const nextBuildId = getActiveWebBuildId();
+        if (nextBuildId && nextBuildId !== lastNotifiedBuildId) {
+            lastNotifiedBuildId = nextBuildId;
+            ctx.io?.emit('panel:version', { webBuildId: nextBuildId, ts: Date.now() });
+        }
+    };
+
+    try {
+        const pointerFile = getRuntimePaths().webRootPointerFile;
+        const pointerDir = path.dirname(pointerFile);
+        const pointerName = path.basename(pointerFile);
+        if (fs.existsSync(pointerDir)) {
+            webWatcher = fs.watch(pointerDir, (_eventType: string, filename: string | Buffer | null) => {
+                if (filename && String(filename) !== pointerName) return;
+                if (webWatchTimer) clearTimeout(webWatchTimer);
+                webWatchTimer = setTimeout(notifyIfWebChanged, 150);
+                webWatchTimer.unref?.();
+            });
+            webWatcher.unref?.();
+            webWatcher.on?.('error', () => {
+                // ignore watcher errors on ephemeral filesystems
+            });
+        }
+    } catch {
+        // ignore fs.watch unsupported environments
+    }
+
+    ctx.server?.once('close', () => {
+        if (webWatchTimer) {
+            clearTimeout(webWatchTimer);
+            webWatchTimer = null;
+        }
+        try {
+            webWatcher?.close?.();
+        } catch {
+            // ignore close error
+        }
+        webWatcher = null;
+    });
+
     ctx.io.on('connection', (socket: any) => {
         const initialAccountRef = (socket.handshake.auth && socket.handshake.auth.accountId)
             || (socket.handshake.query && socket.handshake.query.accountId)
             || '';
         applySocketSubscription(ctx, socket, initialAccountRef);
-        socket.emit('ready', { ok: true, ts: Date.now() });
+        socket.emit('ready', { ok: true, ts: Date.now(), webBuildId: getActiveWebBuildId() });
 
         socket.on('subscribe', (payload: any) => {
+            if (!ctx.tokens.has(socket.data.adminToken)) return socket.disconnect(true);
             const body = (payload && typeof payload === 'object') ? payload : {};
             applySocketSubscription(ctx, socket, body.accountId || '');
         });

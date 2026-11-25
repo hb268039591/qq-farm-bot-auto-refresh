@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import api, { getApiErrorMessage } from '@/api'
 
-export type RanchView = 'animals' | 'facilities' | 'shop' | 'market' | 'bag' | 'tasks' | 'illustrated' | 'friends' | 'activities' | 'cans'
+export type RanchView = 'overview' | 'mall' | 'animals' | 'facilities' | 'shop' | 'market' | 'bag' | 'tasks' | 'illustrated' | 'friends' | 'activities' | 'cans'
 export interface RanchItem { id: number, name: string, count: string, image: string }
 export interface RanchQuote {
   action: string
@@ -79,10 +79,10 @@ export const useRanchStore = defineStore('ranch', () => {
     }
   }
 
-  async function reload(accountId: string) {
+  async function reload(accountId: string, overrides?: { hostGid?: string }) {
     const query = lastQuery
     if (query && query.accountId === accountId)
-      await load(query.accountId, query.view, query.shopId, query.hostGid)
+      await load(query.accountId, query.view, query.shopId, overrides?.hostGid ?? query.hostGid)
   }
 
   async function quote(accountId: string, action: string, input: Record<string, unknown>): Promise<RanchQuote | null> {
