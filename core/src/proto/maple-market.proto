@@ -1,0 +1,243 @@
+// Verified against WeChat package 87 official protobuf encoders on 2026-11-27.
+syntax = "proto3";
+
+package gamepb.maplepb;
+
+import "corepb.proto";
+
+
+
+message ActivityHead {
+    int64 id = 1;
+    int64 group_id = 2;
+    int64 type = 3;
+    string name = 4;
+    string desc = 5;
+    int64 start_time = 6;
+    int64 end_time = 7;
+    int64 client_id = 8;
+    int32 status = 20;
+    int64 splash_order = 21;
+    bool splashed = 22;
+    bool has_red_dot = 23;
+    int64 settle_start_time = 24;
+}
+
+message PlayerBasicInfo {
+    int64 gid = 1;
+    string name = 2;
+    string avatar = 3;
+    int64 level = 4;
+    int32 gender = 5;
+}
+
+message ActivityBodyMapleMarket {
+    MapleMarketDailyState daily_state = 1;
+    MapleMarketShopState shop_state = 2;
+    int64 activity_coin = 3;
+    MapleMarketRedDots red_dots = 4;
+    int64 base_price = 5;
+    int64 boost_value = 6;
+    int64 price_multiple_bp = 7;
+    int64 settled_count = 8;
+    int64 settled_activity_coin = 9;
+    int64 settled_gold = 10;
+    int64 pending_commission_activity_coin = 11;
+    int64 pending_commission_gold = 12;
+    int64 pending_commission_count = 13;
+}
+
+message MapleMarketDailyState {
+    bool seed_claimed = 1;
+    bool shared = 2;
+}
+
+message MapleMarketShopState {
+    int64 boost_value = 1;
+    int64 boost_multiple = 2;
+    int64 boost_time = 3;
+    bool boost_unread = 4;
+    int64 quota_used = 5;
+}
+
+message MapleMarketPurchaseLogEntry {
+    int64 sell_time = 1;
+    int64 seller_gid = 2;
+    int64 sold_count = 3;
+    int64 activity_coin_income = 4;
+    int64 income_gold = 5;
+    string seller_name = 6;
+    string seller_avatar = 7;
+    int64 seller_level = 8;
+    int64 owner_commission_activity_coin = 9;
+    int64 owner_commission_gold = 10;
+}
+
+message MapleMarketShopInfo {
+    int64 base_price = 1;
+    int64 boost_value = 2;
+    int64 remain_quota = 3;
+    PlayerBasicInfo owner = 4;
+}
+
+message MapleMarketArk {
+    int64 host_gid = 1;
+    string share_key = 2;
+    string share_open_id = 3;
+    int32 ark_biz_type = 4;
+    bytes ark_biz_param = 5;
+}
+
+message MapleMarketArkClickParam {
+    int64 activity_id = 1;
+    int64 host_gid = 2;
+}
+
+message MapleMarketGoods {
+    int64 goods_id = 1;
+    int64 activity_coin_price = 2;
+    int32 limit_type = 3;
+    int64 limit_times = 4;
+    int64 purchased_daily = 5;
+    int64 purchased_total = 6;
+    bool exchangeable = 7;
+}
+
+message MapleMarketRedDots {
+    bool seed_unclaimed = 1;
+    bool boost_unread = 2;
+    bool share_unclaimed = 3;
+    bool exchangeable = 4;
+    bool purchase_log_unread = 5;
+    bool commission_claimable = 6;
+}
+
+message MapleMarketClaimSeedReq {
+
+}
+
+message MapleMarketClaimSeedRsp {
+    corepb.Item seed = 1;
+}
+
+message MapleMarketGetShopReq {
+    int64 target_gid = 1;
+}
+
+message MapleMarketGetShopRsp {
+    MapleMarketShopInfo shop = 1;
+    bool can_sell = 2;
+}
+
+message MapleMarketSellReq {
+    int64 target_gid = 1;
+    int64 sell_count = 2;
+}
+
+message MapleMarketSellRsp {
+    int64 sold_count = 1;
+    int64 final_price = 2;
+    int64 activity_coin_income = 3;
+    int64 remain_quota = 4;
+    int64 activity_coin = 5;
+    int64 income_gold = 6;
+}
+
+message MapleMarketGetBoostLogReq {
+
+}
+
+message MapleMarketGetBoostLogRsp {
+    int64 boost_value = 1;
+    int64 boost_multiple = 2;
+    int64 boost_time = 3;
+}
+
+message MapleMarketGetPurchaseLogReq {
+
+}
+
+message MapleMarketGetPurchaseLogRsp {
+    repeated MapleMarketPurchaseLogEntry logs = 1;
+}
+
+message MapleMarketExchangeReq {
+    int64 goods_id = 1;
+    int64 exchange_count = 2;
+}
+
+message MapleMarketExchangeRsp {
+    int64 activity_coin_cost = 1;
+    repeated corepb.Item items = 2;
+    int64 activity_coin = 3;
+    int64 purchased_daily = 4;
+    int64 purchased_total = 5;
+}
+
+message MapleMarketGetGoodsListReq {
+
+}
+
+message MapleMarketGetGoodsListRsp {
+    repeated MapleMarketGoods goods = 1;
+    int64 activity_coin = 2;
+}
+
+message MapleMarketShareReq {
+
+}
+
+message MapleMarketShareRsp {
+    corepb.Item seed = 1;
+    int64 boost_added = 2;
+    int64 final_price = 3;
+    MapleMarketArk ark = 4;
+    int64 final_price_multiple_bp = 5;
+    bool first_share = 6;
+}
+
+message MapleMarketClaimCommissionReq {
+
+}
+
+message MapleMarketClaimCommissionRsp {
+    int64 activity_coin = 1;
+    int64 gold = 2;
+    int64 claim_count = 3;
+    int64 activity_coin_balance = 4;
+}
+
+message MapleActivity { ActivityHead head = 1; ActivityBodyMapleMarket maple_market = 130; }
+
+message MapleGroup { ActivityHead head = 1; repeated MapleActivity children = 2; }
+
+message MapleGetGroupReply { MapleGroup group = 1; }
+
+message MapleOperateRequest {
+    int64 id = 1;
+    int64 cmd = 2;
+    MapleMarketClaimSeedReq maple_market_claim_seed = 191;
+    MapleMarketGetShopReq maple_market_get_shop = 192;
+    MapleMarketSellReq maple_market_sell = 193;
+    MapleMarketGetBoostLogReq maple_market_get_boost_log = 194;
+    MapleMarketGetPurchaseLogReq maple_market_get_purchase_log = 195;
+    MapleMarketExchangeReq maple_market_exchange = 196;
+    MapleMarketGetGoodsListReq maple_market_get_goods_list = 197;
+    MapleMarketShareReq maple_market_share = 198;
+    MapleMarketClaimCommissionReq maple_market_claim_commission = 199;
+}
+
+message MapleOperateReply {
+    int64 id = 1;
+    int64 cmd = 2;
+    MapleActivity activity = 3;
+    MapleMarketClaimSeedRsp maple_market_claim_seed = 191;
+    MapleMarketGetShopRsp maple_market_get_shop = 192;
+    MapleMarketSellRsp maple_market_sell = 193;
+    MapleMarketGetBoostLogRsp maple_market_get_boost_log = 194;
+    MapleMarketGetPurchaseLogRsp maple_market_get_purchase_log = 195;
+    MapleMarketExchangeRsp maple_market_exchange = 196;
+    MapleMarketGetGoodsListRsp maple_market_get_goods_list = 197;
+    MapleMarketShareRsp maple_market_share = 198;
+    MapleMarketClaimCommissionRsp maple_market_claim_commission = 199;
+}

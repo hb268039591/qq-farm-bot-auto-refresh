@@ -1,0 +1,244 @@
+{
+  "MapleMarketActivityConfig": [
+    {
+      "activity_id": 2026111708,
+      "crop_item_id": 1032,
+      "seed_item_id": 20307,
+      "base_seed_count": 28,
+      "share_reward_count": 4,
+      "activity_coin_rate_bp": 10000,
+      "activity_coin_item_id": 1033,
+      "gold_rate_bp": 0,
+      "owner_commission_activity_coin_rate_bp": 200,
+      "owner_commission_gold_rate_bp": 0
+    }
+  ],
+  "MapleMarketGoodsConfig": [
+    {
+      "goods_id": 1,
+      "activity_id": 2026111708,
+      "name": "七彩花弦",
+      "maple_market_item_list": "204013:1",
+      "activity_coin_price": 1000000,
+      "restriction_type": 2,
+      "restriction_times": 1,
+      "open_day": 0
+    },
+    {
+      "goods_id": 2,
+      "activity_id": 2026111708,
+      "name": "福气金豆礼包",
+      "maple_market_item_list": "101627:1",
+      "activity_coin_price": 60000,
+      "restriction_type": 2,
+      "restriction_times": 28,
+      "open_day": 0
+    },
+    {
+      "goods_id": 3,
+      "activity_id": 2026111708,
+      "name": "金币果",
+      "maple_market_item_list": "20522:1",
+      "activity_coin_price": 40000,
+      "restriction_type": 2,
+      "restriction_times": 40,
+      "open_day": 0
+    },
+    {
+      "goods_id": 4,
+      "activity_id": 2026111708,
+      "name": "经验蘑菇",
+      "maple_market_item_list": "20523:1",
+      "activity_coin_price": 40000,
+      "restriction_type": 2,
+      "restriction_times": 40,
+      "open_day": 0
+    },
+    {
+      "goods_id": 5,
+      "activity_id": 2026111708,
+      "name": "有机化肥(1小时)",
+      "maple_market_item_list": "80011:1",
+      "activity_coin_price": 8500,
+      "restriction_type": 2,
+      "restriction_times": 50,
+      "open_day": 0
+    },
+    {
+      "goods_id": 6,
+      "activity_id": 2026111708,
+      "name": "南瓜种子礼包",
+      "maple_market_item_list": "101620:1",
+      "activity_coin_price": 28000,
+      "restriction_type": 2,
+      "restriction_times": 10,
+      "open_day": 0
+    },
+    {
+      "goods_id": 7,
+      "activity_id": 2026111708,
+      "name": "荷风种子礼包",
+      "maple_market_item_list": "101621:1",
+      "activity_coin_price": 28000,
+      "restriction_type": 2,
+      "restriction_times": 10,
+      "open_day": 0
+    },
+    {
+      "goods_id": 8,
+      "activity_id": 2026111708,
+      "name": "千星种子礼包",
+      "maple_market_item_list": "101622:1",
+      "activity_coin_price": 28000,
+      "restriction_type": 2,
+      "restriction_times": 10,
+      "open_day": 0
+    },
+    {
+      "goods_id": 9,
+      "activity_id": 2026111708,
+      "name": "萌宠种子礼包",
+      "maple_market_item_list": "101623:1",
+      "activity_coin_price": 35000,
+      "restriction_type": 2,
+      "restriction_times": 10,
+      "open_day": 0
+    },
+    {
+      "goods_id": 10,
+      "activity_id": 2026111708,
+      "name": "化肥(1小时)",
+      "maple_market_item_list": "80001:1",
+      "activity_coin_price": 7000,
+      "restriction_type": 2,
+      "restriction_times": 50,
+      "open_day": 0
+    }
+  ],
+  "MapleMarketPriceTierConfig": [
+    {
+      "activity_id": 2026111708,
+      "tier_id": 1,
+      "tier_name": "普通",
+      "price_min": 80,
+      "price_max": 120
+    },
+    {
+      "activity_id": 2026111708,
+      "tier_id": 2,
+      "tier_name": "高价",
+      "price_min": 130,
+      "price_max": 170
+    },
+    {
+      "activity_id": 2026111708,
+      "tier_id": 3,
+      "tier_name": "超高价",
+      "price_min": 180,
+      "price_max": 220
+    }
+  ],
+  "MapleMarketFinalPriceTierConfig": [
+    {
+      "activity_id": 2026111708,
+      "tier_id": 1,
+      "tier_name": "普通",
+      "price_min": 80,
+      "price_max": 235
+    },
+    {
+      "activity_id": 2026111708,
+      "tier_id": 2,
+      "tier_name": "高价",
+      "price_min": 236,
+      "price_max": 395
+    },
+    {
+      "activity_id": 2026111708,
+      "tier_id": 3,
+      "tier_name": "超高价",
+      "price_min": 396,
+      "price_max": 550
+    }
+  ],
+  "items": [
+    {
+      "id": 1032,
+      "name": "蜜薯",
+      "icon_res": "gui/texture/icon/icon_mishu/spriteFrame",
+      "desc": "收获红薯可额外获得蜜薯；兑换福气币的专属道具，活动结束后可出售金币。"
+    },
+    {
+      "id": 1033,
+      "name": "福气币",
+      "icon_res": "gui/texture/icon/icon_mapleMarket_cost/spriteFrame",
+      "desc": "可在以薯换福的活动中兑换商品"
+    },
+    {
+      "id": 80001,
+      "name": "化肥(1小时)",
+      "icon_res": "gui/texture/icon/icon_feterlize1/spriteFrame",
+      "desc": "加速成长道具，使用后【普通】化肥容器增加1小时。"
+    },
+    {
+      "id": 80011,
+      "name": "有机化肥(1小时)",
+      "icon_res": "gui/texture/icon/icon_feterlize5/spriteFrame",
+      "desc": "加速成长道具，使用后【有机】化肥容器增加1小时。"
+    },
+    {
+      "id": 101620,
+      "name": "南瓜种子礼包",
+      "icon_res": "gui/texture/icon/pack_09/spriteFrame",
+      "desc": "打开时有概率获得卡特兰种子、红云飞片种子、石竹花种子、针垫花种子、孔雀草种子、欧石楠种子、黄金果种子、哈哈南瓜种子。"
+    },
+    {
+      "id": 101621,
+      "name": "荷风种子礼包",
+      "icon_res": "gui/texture/icon/pack_10/spriteFrame",
+      "desc": "打开时有概率获得似何莲种子、地涌金莲种子、凤仙花种子、金银花种子、米兰种子、鹭草种子、繁星花种子、香彩雀种子、荷青花种子、菖蒲种子、芹叶铁线莲种子、凌霄花种子、琉璃宝荷种子。"
+    },
+    {
+      "id": 101622,
+      "name": "千星种子礼包",
+      "icon_res": "gui/texture/icon/pack_11/spriteFrame",
+      "desc": "打开时有概率获得帝王血种子、铃兰种子、月见草种子、紫茉莉种子、月光花种子、银星海棠种子、萱草种子、紫薇种子、梧桐种子、勿忘我种子、木槿种子、星语铃花种子。"
+    },
+    {
+      "id": 101623,
+      "name": "萌宠种子礼包",
+      "icon_res": "gui/texture/icon/pack_12/spriteFrame",
+      "desc": "打开时有概率获得狗尾草种子、芦苇种子、枸杞种子、月桂花种子、寒兰种子、泡泡棉花糖种子。"
+    },
+    {
+      "id": 101627,
+      "name": "福气金豆礼包",
+      "icon_res": "gui/texture/icon/pack_13/spriteFrame",
+      "desc": "必定获取金豆豆、化肥、有机化肥、数量随机：金豆豆*666，金豆豆*888，金豆豆*999、有机化肥（4小时）*1、有机化肥（4小时）*2、有机化肥（4小时）*3、化肥（1小时）*1、化肥（1小时）*2、化肥（1小时）*3。"
+    },
+    {
+      "id": 20522,
+      "name": "金币果种子",
+      "icon_res": null,
+      "desc": "种植后，可以收获一定数量的金币果。"
+    },
+    {
+      "id": 20523,
+      "name": "经验蘑菇种子",
+      "icon_res": null,
+      "desc": "种植后，可以收获一定数量的经验蘑菇。"
+    },
+    {
+      "id": 20307,
+      "name": "红薯种子",
+      "icon_res": null,
+      "desc": "种植后，可以收获一定数量的红薯"
+    },
+    {
+      "id": 204013,
+      "name": "七彩花弦",
+      "icon_res": "gui/texture/skinIcon/icon_skin_tower_7/spriteFrame",
+      "desc": "【以薯换福】活动限定装扮，可在【装扮】功能中进行装备。"
+    }
+  ]
+}

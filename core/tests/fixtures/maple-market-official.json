@@ -1,0 +1,163 @@
+{
+  "source": "Official WeChat game package 87, offline encoder comparison, 2026-11-27",
+  "fixtures": [
+    {
+      "type": "MapleOperateRequest",
+      "data": {
+        "id": "2026111708",
+        "cmd": 91,
+        "maple_market_claim_seed": {}
+      },
+      "hex": "08dc8590c607105bfa0b00"
+    },
+    {
+      "type": "MapleOperateRequest",
+      "data": {
+        "id": "2026111708",
+        "cmd": 92,
+        "maple_market_get_shop": {
+          "target_gid": "9007199254740995"
+        }
+      },
+      "hex": "08dc8590c607105c820c09088380808080808010"
+    },
+    {
+      "type": "MapleOperateRequest",
+      "data": {
+        "id": "2026111708",
+        "cmd": 93,
+        "maple_market_sell": {
+          "target_gid": "9007199254740995",
+          "sell_count": "123"
+        }
+      },
+      "hex": "08dc8590c607105d8a0c0b088380808080808010107b"
+    },
+    {
+      "type": "MapleOperateRequest",
+      "data": {
+        "id": "2026111708",
+        "cmd": 94,
+        "maple_market_get_boost_log": {}
+      },
+      "hex": "08dc8590c607105e920c00"
+    },
+    {
+      "type": "MapleOperateRequest",
+      "data": {
+        "id": "2026111708",
+        "cmd": 95,
+        "maple_market_get_purchase_log": {}
+      },
+      "hex": "08dc8590c607105f9a0c00"
+    },
+    {
+      "type": "MapleOperateRequest",
+      "data": {
+        "id": "2026111708",
+        "cmd": 96,
+        "maple_market_exchange": {
+          "goods_id": "1",
+          "exchange_count": "2"
+        }
+      },
+      "hex": "08dc8590c6071060a20c0408011002"
+    },
+    {
+      "type": "MapleOperateRequest",
+      "data": {
+        "id": "2026111708",
+        "cmd": 97,
+        "maple_market_get_goods_list": {}
+      },
+      "hex": "08dc8590c6071061aa0c00"
+    },
+    {
+      "type": "MapleOperateRequest",
+      "data": {
+        "id": "2026111708",
+        "cmd": 98,
+        "maple_market_share": {}
+      },
+      "hex": "08dc8590c6071062b20c00"
+    },
+    {
+      "type": "MapleOperateRequest",
+      "data": {
+        "id": "2026111708",
+        "cmd": 99,
+        "maple_market_claim_commission": {}
+      },
+      "hex": "08dc8590c6071063ba0c00"
+    },
+    {
+      "type": "MapleGetGroupReply",
+      "data": {
+        "group": {
+          "head": {
+            "id": "2026111707"
+          },
+          "children": [
+            {
+              "head": {
+                "id": "2026111708",
+                "group_id": "2026111707",
+                "status": 3,
+                "start_time": "1795536000",
+                "end_time": "1796745600"
+              },
+              "maple_market": {
+                "daily_state": {
+                  "seed_claimed": true
+                },
+                "activity_coin": "9007199254740995",
+                "pending_commission_count": "2"
+              }
+            }
+          ]
+        }
+      },
+      "hex": "0a390a0608db8590c607122f0a1b08dc8590c60710db8590c6073080e996d8063880d3e0d806a0010392080f0a0208011883808080808080106802"
+    },
+    {
+      "type": "MapleOperateReply",
+      "data": {
+        "id": "2026111708",
+        "cmd": 92,
+        "maple_market_get_shop": {
+          "shop": {
+            "owner": {
+              "gid": "9007199254740995",
+              "name": "官方编码测试"
+            },
+            "base_price": "161",
+            "boost_value": "11",
+            "remain_quota": "55"
+          },
+          "can_sell": true
+        }
+      },
+      "hex": "08dc8590c607105c820c2a0a2608a101100b1837221d0883808080808080101212e5ae98e696b9e7bc96e7a081e6b58be8af951001"
+    },
+    {
+      "type": "MapleOperateReply",
+      "data": {
+        "id": "2026111708",
+        "cmd": 96,
+        "maple_market_exchange": {
+          "activity_coin_cost": "100",
+          "items": [
+            {
+              "id": "204013",
+              "count": "1"
+            }
+          ],
+          "activity_coin": "9007199254740895",
+          "purchased_daily": "1",
+          "purchased_total": "1"
+        }
+      },
+      "hex": "08dc8590c6071060a20c170864120608edb90c1001189fffffffffffff0f20012801"
+    }
+  ]
+}

@@ -43,6 +43,7 @@ async function loadProto(): Promise<void> {
         getResourcePath('proto', 'interactpb.proto'),
         getResourcePath('proto', 'activitypb.proto'),
         getResourcePath('proto', 'muge.proto'),
+        getResourcePath('proto', 'maple-market.proto'),
         getResourcePath('proto', 'seasonpb.proto'),
         getResourcePath('proto', 'solartermspb.proto'),
         getResourcePath('proto', 'randomdroppb.proto'),
@@ -61,6 +62,10 @@ async function loadProto(): Promise<void> {
         getResourcePath('proto', 'miscpb.proto'),
         getResourcePath('proto', 'achievepb.proto'),
     ], { keepCase: true });
+
+    for (const name of ['MapleGetGroupReply', 'MapleOperateRequest', 'MapleOperateReply']) {
+        types[name] = root.lookupType(`gamepb.maplepb.${name}`);
+    }
 
     // 网关
     types.GateMessage = root.lookupType('gatepb.Message');

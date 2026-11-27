@@ -16,6 +16,7 @@ import AutumnActivityPage from './activity-center/AutumnActivityPage.vue'
 import CharityActivityPage from './activity-center/CharityActivityPage.vue'
 import MilkTeaPage from './activity-center/MilkTeaPage.vue'
 import MugePage from './activity-center/MugePage.vue'
+import MapleMarketPage from './activity-center/MapleMarketPage.vue'
 import PetDiaryPage from './activity-center/PetDiaryPage.vue'
 import QingMeiActivityPage from './activity-center/QingMeiActivityPage.vue'
 import QixiActivityPage from './activity-center/QixiActivityPage.vue'
@@ -52,7 +53,7 @@ async function openActivity(activity: ActivityDirectoryItemDto) {
 
   selectedActivity.value = gameplay.module.key
   selectedInstanceId.value = activity.instanceId || activity.activityIds.find(id => ['2026092501', '2026110104'].includes(id)) || ''
-  if (['pet', 'wish', 'happy', 'milk', 'muge'].includes(gameplay.module.key))
+  if (['pet', 'wish', 'happy', 'milk', 'muge', 'maple'].includes(gameplay.module.key))
     return
   const detailsLoaded = await activityStore.loadDetails(accountId(), gameplay.module.key)
   if (gameplay.module.key === 'qixi' && currentAccountId.value) {
@@ -125,6 +126,7 @@ onUnmounted(() => {
     @back="goBack"
     @open="openActivity"
   />
+  <MapleMarketPage v-else-if="selectedActivity === 'maple'" @back="goBack" />
   <MugePage v-else-if="selectedActivity === 'muge'" @back="goBack" />
   <MilkTeaPage v-else-if="selectedActivity === 'milk'" @back="goBack" />
   <ShareRewardActivity v-else-if="selectedActivity === 'happy'" :activity-id="selectedInstanceId" @back="goBack" />

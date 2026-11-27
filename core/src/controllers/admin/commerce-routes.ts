@@ -78,6 +78,8 @@ function mountCommerceRoutes(app: Application, ctx: AdminContext): void {
     app.post('/api/illustrated/clear-new', withAccount((accountId: string, req: Request) => ctx.provider.clearIllustratedNew(accountId, req.body?.fruitIds)));
 
     app.get('/api/activities/milk-tea', withAccount((accountId: string, req: Request) => ctx.provider.getMilkTeaActivity(accountId, req.query.page || 'shop', req.query)));
+    app.get('/api/activities/maple', withAccount((accountId: string, req: Request) => ctx.provider.getMapleMarket(accountId, req.query)));
+    app.post('/api/activities/maple/:action', withAccount((accountId: string, req: Request) => ctx.provider.operateMapleMarket(accountId, String(req.params.action), req.body)));
     app.get('/api/activities/muge', withAccount((accountId: string) => ctx.provider.getMugeActivity(accountId)));
     app.post('/api/activities/muge/:action', withAccount((accountId: string, req: Request) => ctx.provider.operateMugeActivity(accountId, req.params.action, req.body)));
     app.post('/api/activities/milk-tea/:action', withAccount((accountId: string, req: Request) => ctx.provider.operateMilkTeaActivity(accountId, req.params.action, req.body)));
